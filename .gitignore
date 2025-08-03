@@ -1,0 +1,73 @@
+﻿# Unity generated folders
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+UserSettings/
+
+# Unity auto-generated files
+sysinfo.txt
+
+# Visual Studio files
+*.sln
+*.csproj
+*.unityproj
+*.suo
+*.user
+*.userprefs
+*.userosscache
+.vs/
+.vscode/
+.idea/
+*.sln.iml
+
+# OS generated files
+.DS_Store
+Thumbs.db
+desktop.ini
+._*
+
+# Build results
+*.apk
+*.aab
+*.unitypackage
+*.xcodeproj/
+*.xcworkspace/
+*.xcuserdata/
+*.ipa
+*.app
+
+# Cache and temp files
+*.log
+*.pidb.meta
+*.svd
+*.pdb
+*.mdb
+*.opendb
+
+# Crashlytics / Firebase
+crashlytics-build.properties
+
+# Others
+*.prefs
+*.env
+
+# Unity Addressables cache
+[Aa]ddressableAssetsData/*
+
+# Package manager lock file (optional)
+Packages/packages-lock.json
+
+# Asset Store Tools cache
+Assets/AssetStoreTools*
+
+# Yarn spinner dialogue files (if used)
+*.yarn*
+
+# Crash reports
+crash-reports/
+
+# Keep Unity meta files tracked
+!**/*.meta

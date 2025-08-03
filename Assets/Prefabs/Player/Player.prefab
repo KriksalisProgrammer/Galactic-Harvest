@@ -14,6 +14,7 @@ GameObject:
   - component: {fileID: 8658041489927253460}
   - component: {fileID: 7707938144046975986}
   - component: {fileID: 1634694614914748059}
+  - component: {fileID: -2535177027082368974}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -154,6 +155,30 @@ MonoBehaviour:
   gravity: -9.24
   plantPrefab: {fileID: 7993865004345434113, guid: 8f17edbcb8551024a90f41e95861a934,
     type: 3}
+--- !u!114 &-2535177027082368974
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7379527273252036878}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 55ce88d07323bdc47a5a6e787287259b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  previewPlantPrefab: {fileID: 2287522339403502475, guid: 016b9de15b2596844946e8e91b222e98,
+    type: 3}
+  realPlantPrefab: {fileID: 7993865004345434113, guid: 8f17edbcb8551024a90f41e95861a934,
+    type: 3}
+  groundLayerMask:
+    serializedVersion: 2
+    m_Bits: 8
+  plantingRadius: 1
+  maxRaycastDistance: 20
+  plantingAreaSize: {x: 0.36, y: 0.36}
+  showPlantingZones: 1
+  showOtherPlantsZones: 1
 --- !u!1 &8406490540646472423
 GameObject:
   m_ObjectHideFlags: 0

@@ -5,18 +5,19 @@ using UnityEngine;
 [RequireComponent(typeof(CharacterController))]
 public class PlayerController : MonoBehaviour
 {
+    [Header("Movement")]
     public float moveSpeed = 5f;
-    public float mouseSensitivity = 2f;
     public float jumpHeight = 1.5f;
     public float gravity = -9.81f;
+
+    [Header("Camera")]
+    public float mouseSensitivity = 2f;
 
     private CharacterController controller;
     private float verticalRotation = 0f;
     private Camera playerCamera;
-
-    public GameObject plantPrefab; 
-
     private float verticalVelocity = 0f;
+    private bool cursorLocked = true;
 
     void Start()
     {
@@ -28,12 +29,39 @@ public class PlayerController : MonoBehaviour
             Debug.LogError("PlayerController: Camera not found in children!");
         }
 
-        Cursor.lockState = CursorLockMode.Locked;
+        SetCursorState(true);
     }
 
     void Update()
     {
+        HandleCursorToggle();
 
+        if (cursorLocked)
+        {
+            HandleMouseLook();
+        }
+
+        HandleMovement();
+    }
+
+    private void HandleCursorToggle()
+    {
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            cursorLocked = !cursorLocked;
+            SetCursorState(cursorLocked);
+        }
+    }
+
+    private void SetCursorState(bool locked)
+    {
+        cursorLocked = locked;
+        Cursor.lockState = locked ? CursorLockMode.Locked : CursorLockMode.None;
+        Cursor.visible = !locked;
+    }
+
+    private void HandleMouseLook()
+    {
         float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity;
         float mouseY = Input.GetAxis("Mouse Y") * mouseSensitivity;
 
@@ -46,12 +74,24 @@ public class PlayerController : MonoBehaviour
         }
 
         transform.Rotate(Vector3.up * mouseX);
+    }
 
+    private void HandleMovement()
+    {
         float moveX = Input.GetAxis("Horizontal");
         float moveZ = Input.GetAxis("Vertical");
 
         Vector3 move = transform.right * moveX + transform.forward * moveZ;
+        move = Vector3.ClampMagnitude(move, 1f);
 
+        HandleJumping();
+
+        move.y = verticalVelocity;
+        controller.Move(move * moveSpeed * Time.deltaTime);
+    }
+
+    private void HandleJumping()
+    {
         if (controller.isGrounded)
         {
             if (Input.GetButtonDown("Jump"))
@@ -60,35 +100,12 @@ public class PlayerController : MonoBehaviour
             }
             else
             {
-                verticalVelocity = -0.5f;
+                verticalVelocity = -0.5f; 
             }
         }
         else
         {
             verticalVelocity += gravity * Time.deltaTime;
         }
-        if (Input.GetKeyDown(KeyCode.E))
-        {
-            TryPlantSeed();
-        }
-
-        move.y = verticalVelocity;
-
-            controller.Move(move * moveSpeed * Time.deltaTime);
     }
-    void TryPlantSeed()
-    {
-        Ray ray = playerCamera.ScreenPointToRay(new Vector3(Screen.width / 2, Screen.height / 2));
-        if (Physics.Raycast(ray, out RaycastHit hit, 5f))
-        {
-            if (hit.collider.CompareTag("Ground"))
-            {
-                Vector3 plantPosition = hit.point;
-                Instantiate(plantPrefab, plantPosition, Quaternion.identity);
-                Debug.Log("Посадили растение!");
-            }
-        }
-    }
-
-
 }

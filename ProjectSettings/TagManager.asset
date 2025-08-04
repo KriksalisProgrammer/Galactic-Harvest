@@ -7,11 +7,12 @@ TagManager:
   - CinemachineTarget
   - Terrain
   - Ground
+  - Plant
   layers:
   - Default
   - TransparentFX
   - Ignore Raycast
-  - 
+  - Ground
   - Water
   - UI
   - 

@@ -10,7 +10,7 @@ public class PlayerPlanting : MonoBehaviour
     [SerializeField] private float plantingRadius = 1f;
     [SerializeField] private float maxRaycastDistance = 100f;
     [SerializeField] private Vector2 plantingAreaSize = new Vector2(1f, 1f);
-
+    [SerializeField] private PlantData selectedPlantData;
     [Header("Визуализация зон")]
     [SerializeField] private bool showPlantingZones = true;
     [SerializeField] private bool showOtherPlantsZones = true;
@@ -38,6 +38,23 @@ public class PlayerPlanting : MonoBehaviour
         }
 
         CreateSimpleMaterials();
+
+        // ДОБАВЛЯЕМ ТОЛЬКО ЭТУ ПРОВЕРКУ:
+        ValidateSelectedPlantData();
+    }
+
+    // ДОБАВЛЯЕМ ТОЛЬКО ЭТОТ МЕТОД:
+    private void ValidateSelectedPlantData()
+    {
+        if (selectedPlantData != null)
+        {
+            string errorMessage;
+            if (!selectedPlantData.IsValid(out errorMessage))
+            {
+                Debug.LogError($"PlayerPlanting: Выбранные данные растения некорректны: {errorMessage}");
+                selectedPlantData = null;
+            }
+        }
     }
 
     void Update()
@@ -320,9 +337,17 @@ public class PlayerPlanting : MonoBehaviour
 
     private void PlantReal(Vector3 position)
     {
-        if (realPlantPrefab == null)
+        if (realPlantPrefab == null || selectedPlantData == null)
         {
-            Debug.LogError("PlayerPlanting: realPlantPrefab не назначен!");
+            Debug.LogError("PlayerPlanting: Не назначены realPlantPrefab или selectedPlantData!");
+            return;
+        }
+
+        // ДОБАВЛЯЕМ ТОЛЬКО ЭТУ ПРОВЕРКУ:
+        string errorMessage;
+        if (!selectedPlantData.IsValid(out errorMessage))
+        {
+            Debug.LogError($"PlayerPlanting: Данные растения некорректны: {errorMessage}");
             return;
         }
 
@@ -332,6 +357,16 @@ public class PlayerPlanting : MonoBehaviour
         if (!planted.CompareTag("Plant"))
         {
             planted.tag = "Plant";
+        }
+
+        PlantedPlant plantScript = planted.GetComponent<PlantedPlant>();
+        if (plantScript != null)
+        {
+            plantScript.plantData = selectedPlantData;
+        }
+        else
+        {
+            Debug.LogError("Planted prefab missing PlantedPlant component.");
         }
     }
 

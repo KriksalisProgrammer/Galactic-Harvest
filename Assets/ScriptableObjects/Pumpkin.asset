@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8dc859936e4a81840b034d4d966b95b2, type: 3}
+  m_Name: Pumpkin
+  m_EditorClassIdentifier: 
+  plantName: Pumpkin
+  growthStages:
+  - modelPrefab: {fileID: 3405258987090060930, guid: d9d8888a4102a5e4a919656de1695b19,
+      type: 3}
+    timeToNextStage: 10
+  - modelPrefab: {fileID: 2109336336410121926, guid: 9e8169dc2b7574742a11b82a25c0c2b0,
+      type: 3}
+    timeToNextStage: 10
+  - modelPrefab: {fileID: 1759991026519846144, guid: c075773a0ce65774192e7ca3e62361dc,
+      type: 3}
+    timeToNextStage: 15
+  - modelPrefab: {fileID: 3372160506961095821, guid: c9e1b09316bd90a49956c349819b2d98,
+      type: 3}
+    timeToNextStage: 5
+  fruitAmount: 5
+  fruitPrefab: {fileID: 3542036756704775220, guid: ff7669bc2808c7e44b82fe237a198b04,
+    type: 3}

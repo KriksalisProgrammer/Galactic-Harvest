@@ -12,7 +12,20 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8dc859936e4a81840b034d4d966b95b2, type: 3}
   m_Name: CucumberSO
   m_EditorClassIdentifier: 
-  plantName: Cucumbe
-  growthStages: []
-  fruitAmount: 0
-  fruitPrefab: {fileID: 0}
+  plantName: Cucumber
+  growthStages:
+  - modelPrefab: {fileID: 5548589263147883789, guid: 954f41b43895f014a97f0bd137315b10,
+      type: 3}
+    timeToNextStage: 3
+  - modelPrefab: {fileID: 3159653544841424902, guid: bc5b69b5444e19740a87cb2bed2594cb,
+      type: 3}
+    timeToNextStage: 6
+  - modelPrefab: {fileID: 6011174523062215219, guid: 0545b46140a974340a5eab5d0e191699,
+      type: 3}
+    timeToNextStage: 6
+  - modelPrefab: {fileID: 3673856565850219800, guid: 0a30a7d4e6e6875429e8df5ed4845e26,
+      type: 3}
+    timeToNextStage: 3
+  fruitAmount: 20
+  fruitPrefab: {fileID: 2867199675854826854, guid: d10c5ef5d00fa6e44a503559a24e4f87,
+    type: 3}

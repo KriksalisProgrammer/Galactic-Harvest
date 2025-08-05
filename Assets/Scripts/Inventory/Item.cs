@@ -11,7 +11,7 @@ public class Item : ScriptableObject
     public Sprite icon;
 
     [Header("World Object")]
-    public GameObject prefab; 
+    public GameObject prefab;
 
     [Header("Properties")]
     public ItemType itemType = ItemType.Misc;
@@ -29,16 +29,59 @@ public class Item : ScriptableObject
         return !string.IsNullOrEmpty(itemName) ? itemName : name;
     }
 
-
-    public bool IsValid()
+    public virtual bool IsValid()
     {
         return !string.IsNullOrEmpty(itemName) && icon != null;
+    }
+
+    // Виртуальные методы для переопределения в наследниках
+    public virtual void Use(GameObject user)
+    {
+        Debug.Log($"Использован предмет: {GetDisplayName()}");
+
+        // Базовая логика по типам
+        switch (itemType)
+        {
+            case ItemType.Consumable:
+                Debug.Log($"Потреблен: {GetDisplayName()}");
+                break;
+            case ItemType.Tool:
+            case ItemType.Weapon:
+            case ItemType.Equipment:
+                Debug.Log($"Экипирован: {GetDisplayName()}");
+                break;
+            default:
+                Debug.Log($"Предмет {GetDisplayName()} не имеет специального использования");
+                break;
+        }
+    }
+
+    public virtual void OnEquip(GameObject user)
+    {
+        if (isEquippable)
+        {
+            Debug.Log($"Экипирован: {GetDisplayName()}");
+        }
+    }
+
+    public virtual void OnUnequip(GameObject user)
+    {
+        if (isEquippable)
+        {
+            Debug.Log($"Снят: {GetDisplayName()}");
+        }
+    }
+
+    public virtual bool CanUse(GameObject user)
+    {
+        return true; // Базово все предметы можно использовать
     }
 }
 
 public enum ItemType
 {
     Misc,
+    Plant,      // Для семян растений
     Weapon,
     Tool,
     Consumable,

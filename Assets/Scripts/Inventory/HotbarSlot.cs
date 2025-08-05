@@ -6,4 +6,9 @@ using UnityEngine;
 public class HotbarSlot
 {
     public Item item;
+
+    public HotbarSlot()
+    {
+        item = null;
+    }
 }

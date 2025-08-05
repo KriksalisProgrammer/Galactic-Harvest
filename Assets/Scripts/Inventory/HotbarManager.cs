@@ -4,68 +4,48 @@ using UnityEngine;
 
 public class HotbarManager : MonoBehaviour
 {
-    public GameObject[] slots;
-    private int activeSlotIndex = 0;
+    [SerializeField] private int activeSlotIndex = 0;
+    [SerializeField] private int maxSlots = 8;
 
-    void Start()
-    {
-        UpdateSlotHighlight();
-    }
+    public System.Action<int> OnSlotChanged;
 
     void Update()
     {
-        HandleKeyboardInput();
-        HandleScrollInput();
+        HandleInput();
     }
 
-    void HandleKeyboardInput()
+    void HandleInput()
     {
-        for (int i = 0; i < 8; i++)
+        for (int i = 0; i < maxSlots; i++)
         {
             if (Input.GetKeyDown(KeyCode.Alpha1 + i))
             {
-                activeSlotIndex = i;
-                UpdateSlotHighlight();
+                SetActiveSlot(i);
                 break;
             }
         }
-    }
 
-    void HandleScrollInput()
-    {
         float scroll = Input.GetAxis("Mouse ScrollWheel");
         if (scroll > 0f)
         {
-            activeSlotIndex = (activeSlotIndex + 1) % slots.Length;
-            UpdateSlotHighlight();
+            SetActiveSlot((activeSlotIndex + 1) % maxSlots);
         }
         else if (scroll < 0f)
         {
-
-            activeSlotIndex = (activeSlotIndex - 1 + slots.Length) % slots.Length;
-            UpdateSlotHighlight();
+            SetActiveSlot((activeSlotIndex - 1 + maxSlots) % maxSlots);
         }
     }
 
-    void UpdateSlotHighlight()
+    public void SetActiveSlot(int index)
     {
-        for (int i = 0; i < slots.Length; i++)
-        {
-            Transform highlight = slots[i].transform.Find("Highlight");
-            if (highlight != null)
-                highlight.gameObject.SetActive(i == activeSlotIndex);
-        }
+        if (index < 0 || index >= maxSlots) return;
+
+        activeSlotIndex = index;
+        OnSlotChanged?.Invoke(activeSlotIndex);
     }
 
     public int GetActiveSlotIndex()
     {
         return activeSlotIndex;
-    }
-
-    public GameObject GetActiveSlot()
-    {
-        if (activeSlotIndex >= 0 && activeSlotIndex < slots.Length)
-            return slots[activeSlotIndex];
-        return null;
     }
 }

@@ -5,31 +5,30 @@ using UnityEngine.UI;
 
 public class HotbarUI : MonoBehaviour
 {
-    [SerializeField] private Image[] slotIcons;      // Иконки предметов в слотах
-    [SerializeField] private GameObject[] slotHighlights; // Подсветка слотов (рамки)
+    [SerializeField] private Image[] slotIcons;
+    [SerializeField] private GameObject[] slotHighlights;
 
-    private int activeSlot = 0;
-
-    void Start()
+    private void Start()
     {
-        UpdateActiveSlot();
-    }
 
-    void Update()
-    {
-        // Смена слота клавишами 1-8
-        for (int i = 0; i < slotIcons.Length; i++)
+        HotbarManager manager = FindObjectOfType<HotbarManager>();
+        if (manager != null)
         {
-            if (Input.GetKeyDown(KeyCode.Alpha1 + i))
-            {
-                activeSlot = i;
-                UpdateActiveSlot();
-            }
+            manager.OnSlotChanged += UpdateActiveSlot;
+            UpdateActiveSlot(0);
         }
     }
 
-    // Обновление подсветки слотов
-    private void UpdateActiveSlot()
+    private void OnDestroy()
+    {
+        HotbarManager manager = FindObjectOfType<HotbarManager>();
+        if (manager != null)
+        {
+            manager.OnSlotChanged -= UpdateActiveSlot;
+        }
+    }
+
+    private void UpdateActiveSlot(int activeSlot)
     {
         for (int i = 0; i < slotHighlights.Length; i++)
         {
@@ -37,12 +36,16 @@ public class HotbarUI : MonoBehaviour
         }
     }
 
-    // Метод для установки иконки в слот (например, из инвентаря)
     public void SetSlotIcon(int slotIndex, Sprite icon)
     {
         if (slotIndex < 0 || slotIndex >= slotIcons.Length) return;
 
         slotIcons[slotIndex].sprite = icon;
         slotIcons[slotIndex].enabled = icon != null;
+    }
+
+    public void ClearSlot(int slotIndex)
+    {
+        SetSlotIcon(slotIndex, null);
     }
 }

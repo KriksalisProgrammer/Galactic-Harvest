@@ -12,7 +12,20 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8dc859936e4a81840b034d4d966b95b2, type: 3}
   m_Name: PotatoSO
   m_EditorClassIdentifier: 
-  plantName: 
-  growthStages: []
-  fruitAmount: 0
-  fruitPrefab: {fileID: 0}
+  plantName: Potato
+  growthStages:
+  - modelPrefab: {fileID: 7747104046712752863, guid: 37c8aed0c3ce2214b822fea073d85c58,
+      type: 3}
+    timeToNextStage: 5
+  - modelPrefab: {fileID: 1078186593761811873, guid: c9205ec1b7ab97b4fa1c628721d8ec47,
+      type: 3}
+    timeToNextStage: 10
+  - modelPrefab: {fileID: 6970285200367168451, guid: ec5a8331c42edf2438800d17b65307db,
+      type: 3}
+    timeToNextStage: 10
+  - modelPrefab: {fileID: 3957442804452517071, guid: cfddb0ed12974af40baf98edba4800fd,
+      type: 3}
+    timeToNextStage: 10
+  fruitAmount: 20
+  fruitPrefab: {fileID: 1579329972578603792, guid: e8bd5e055a9813e4aa19d69984c8e0d0,
+    type: 3}

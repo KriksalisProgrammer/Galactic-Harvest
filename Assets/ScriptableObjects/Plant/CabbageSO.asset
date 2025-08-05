@@ -12,7 +12,20 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8dc859936e4a81840b034d4d966b95b2, type: 3}
   m_Name: CabbageSO
   m_EditorClassIdentifier: 
-  plantName: 
-  growthStages: []
-  fruitAmount: 0
-  fruitPrefab: {fileID: 0}
+  plantName: Cabbage
+  growthStages:
+  - modelPrefab: {fileID: 3866028440234260207, guid: f45af4be069da2a4e9c216e1c855cac0,
+      type: 3}
+    timeToNextStage: 3
+  - modelPrefab: {fileID: 5919933277895697141, guid: 9b19fd2e14557904097ca3335d7b1d6b,
+      type: 3}
+    timeToNextStage: 7
+  - modelPrefab: {fileID: 2851769624917595584, guid: e48cc1bf37df23346ac35fbd5611b3c5,
+      type: 3}
+    timeToNextStage: 10
+  - modelPrefab: {fileID: 5051801553857472244, guid: 2cb9c5d1465eb684abeb267273d3354b,
+      type: 3}
+    timeToNextStage: 6
+  fruitAmount: 3
+  fruitPrefab: {fileID: 1901095287255446476, guid: 9942e168b1115fd47b46dd01c3ac7be2,
+    type: 3}

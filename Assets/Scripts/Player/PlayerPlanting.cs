@@ -4,16 +4,24 @@ using UnityEngine;
 
 public class PlayerPlanting : MonoBehaviour
 {
-    [SerializeField] private GameObject previewPlantPrefab;
-    [SerializeField] private GameObject realPlantPrefab;
+    [Header("Default Settings")]
     [SerializeField] private LayerMask groundLayerMask = -1;
     [SerializeField] private float plantingRadius = 1f;
     [SerializeField] private float maxRaycastDistance = 100f;
     [SerializeField] private Vector2 plantingAreaSize = new Vector2(1f, 1f);
-    [SerializeField] private PlantData selectedPlantData;
+
     [Header("Визуализация зон")]
     [SerializeField] private bool showPlantingZones = true;
     [SerializeField] private bool showOtherPlantsZones = true;
+
+    [Header("References")]
+    [SerializeField] private HotbarController hotbarController;
+
+    // Текущие настройки посадки (берутся из выбранного семени)
+    private PlantSeed currentSeed;
+    private GameObject currentPreviewPrefab;
+    private GameObject currentPlantPrefab;
+    private PlantData currentPlantData;
 
     private bool isPreviewActive = false;
     private GameObject currentPreview;
@@ -21,8 +29,6 @@ public class PlayerPlanting : MonoBehaviour
     private List<GameObject> otherPlantsZones = new List<GameObject>();
     private Camera playerCamera;
     private Material[] originalMaterials;
-    private Material validZoneMaterial;
-    private Material invalidZoneMaterial;
 
     private void Start()
     {
@@ -37,23 +43,10 @@ public class PlayerPlanting : MonoBehaviour
             Debug.LogError("PlayerPlanting: Не найдена камера!");
         }
 
-        CreateSimpleMaterials();
-
-        // ДОБАВЛЯЕМ ТОЛЬКО ЭТУ ПРОВЕРКУ:
-        ValidateSelectedPlantData();
-    }
-
-    // ДОБАВЛЯЕМ ТОЛЬКО ЭТОТ МЕТОД:
-    private void ValidateSelectedPlantData()
-    {
-        if (selectedPlantData != null)
+        // Находим HotbarController если не назначен
+        if (hotbarController == null)
         {
-            string errorMessage;
-            if (!selectedPlantData.IsValid(out errorMessage))
-            {
-                Debug.LogError($"PlayerPlanting: Выбранные данные растения некорректны: {errorMessage}");
-                selectedPlantData = null;
-            }
+            hotbarController = FindObjectOfType<HotbarController>();
         }
     }
 
@@ -61,7 +54,10 @@ public class PlayerPlanting : MonoBehaviour
     {
         if (playerCamera == null) return;
 
-        if (Input.GetKeyDown(KeyCode.E))
+        // Проверяем выбранный предмет в хотбаре
+        UpdateSelectedSeed();
+
+        if (Input.GetKeyDown(KeyCode.E) && currentSeed != null)
         {
             if (!isPreviewActive)
             {
@@ -83,6 +79,9 @@ public class PlayerPlanting : MonoBehaviour
                 {
                     PlantReal(targetPos);
                     DeactivatePreview();
+
+                    // Удаляем семечко из инвентаря
+                    ConsumeSeed();
                 }
                 else
                 {
@@ -102,10 +101,80 @@ public class PlayerPlanting : MonoBehaviour
         }
     }
 
-    private void CreateSimpleMaterials()
+    private void UpdateSelectedSeed()
     {
-        validZoneMaterial = new Material(Shader.Find("Unlit/Transparent"));
-        invalidZoneMaterial = new Material(Shader.Find("Unlit/Transparent"));
+        if (hotbarController == null) return;
+
+        Item selectedItem = hotbarController.GetSelectedItem();
+        PlantSeed selectedSeed = selectedItem as PlantSeed;
+
+        // Если выбрали другое семечко или убрали семечко
+        if (selectedSeed != currentSeed)
+        {
+            // Если был активен предпросмотр - отключаем его
+            if (isPreviewActive)
+            {
+                DeactivatePreview();
+            }
+
+            currentSeed = selectedSeed;
+
+            if (currentSeed != null)
+            {
+                // Обновляем текущие настройки из выбранного семени
+                currentPreviewPrefab = currentSeed.previewPrefab;
+                currentPlantPrefab = currentSeed.plantPrefab;
+                currentPlantData = currentSeed.plantData;
+
+                Debug.Log($"Выбрано семечко: {currentSeed.itemName}");
+            }
+            else
+            {
+                // Очищаем настройки
+                currentPreviewPrefab = null;
+                currentPlantPrefab = null;
+                currentPlantData = null;
+            }
+        }
+    }
+
+    public void SetSelectedSeed(PlantSeed seed)
+    {
+        currentSeed = seed;
+        if (seed != null)
+        {
+            currentPreviewPrefab = seed.previewPrefab;
+            currentPlantPrefab = seed.plantPrefab;
+            currentPlantData = seed.plantData;
+
+            Debug.Log($"Активирован режим посадки: {seed.GetDisplayName()}");
+        }
+    }
+
+    public void ClearSelectedSeed()
+    {
+        if (isPreviewActive)
+        {
+            DeactivatePreview();
+        }
+
+        currentSeed = null;
+        currentPreviewPrefab = null;
+        currentPlantPrefab = null;
+        currentPlantData = null;
+
+        Debug.Log("Режим посадки отключен");
+    }
+
+    private void ConsumeSeed()
+    {
+        if (hotbarController == null || currentSeed == null) return;
+
+        // Находим активный слот и удаляем предмет
+        int activeSlot = hotbarController.GetComponent<HotbarManager>().GetActiveSlotIndex();
+        hotbarController.RemoveItem(activeSlot);
+
+        Debug.Log($"Использовано семечко: {currentSeed.itemName}");
     }
 
     private Material CreateZoneMaterial(bool canPlant)
@@ -121,11 +190,11 @@ public class PlayerPlanting : MonoBehaviour
 
         if (canPlant)
         {
-            material.color = new Color(0, 1, 0, 0.8f);
+            material.color = new Color(0, 1, 0, 0.3f);
         }
         else
         {
-            material.color = new Color(1, 0, 0, 0.8f);
+            material.color = new Color(1, 0, 0, 0.3f);
         }
         return material;
     }
@@ -183,14 +252,14 @@ public class PlayerPlanting : MonoBehaviour
 
     private void ActivatePreview(Vector3 startPos)
     {
-        if (previewPlantPrefab == null)
+        if (currentPreviewPrefab == null)
         {
-            Debug.LogError("PlayerPlanting: previewPlantPrefab не назначен!");
+            Debug.LogError("PlayerPlanting: Нет префаба предпросмотра для выбранного семени!");
             return;
         }
 
         isPreviewActive = true;
-        currentPreview = Instantiate(previewPlantPrefab, startPos, Quaternion.identity);
+        currentPreview = Instantiate(currentPreviewPrefab, startPos, Quaternion.identity);
         currentPreview.transform.localScale = Vector3.one;
 
         if (showPlantingZones)
@@ -201,7 +270,6 @@ public class PlayerPlanting : MonoBehaviour
         }
 
         ShowOtherPlantsZones();
-        SaveOriginalMaterials();
         MakePreviewVisible();
 
         Collider[] previewColliders = currentPreview.GetComponentsInChildren<Collider>();
@@ -209,6 +277,8 @@ public class PlayerPlanting : MonoBehaviour
         {
             col.enabled = false;
         }
+
+        Debug.Log($"Активирован предпросмотр посадки: {currentSeed.itemName}");
     }
 
     private void DeactivatePreview()
@@ -231,24 +301,6 @@ public class PlayerPlanting : MonoBehaviour
         originalMaterials = null;
     }
 
-    private void SaveOriginalMaterials()
-    {
-        if (currentPreview == null) return;
-
-        Renderer[] renderers = currentPreview.GetComponentsInChildren<Renderer>();
-        List<Material> materials = new List<Material>();
-
-        foreach (Renderer rend in renderers)
-        {
-            foreach (Material mat in rend.materials)
-            {
-                materials.Add(new Material(mat));
-            }
-        }
-
-        originalMaterials = materials.ToArray();
-    }
-
     private void MakePreviewVisible()
     {
         if (currentPreview == null) return;
@@ -264,7 +316,7 @@ public class PlayerPlanting : MonoBehaviour
                 if (newMat.HasProperty("_Color"))
                 {
                     Color color = newMat.color;
-                    color.a = 0.8f;
+                    color.a = 0.6f;
                     newMat.color = color;
                 }
 
@@ -272,7 +324,7 @@ public class PlayerPlanting : MonoBehaviour
                 {
                     newMat.shader = Shader.Find("Legacy Shaders/Transparent/Diffuse");
                     Color color = newMat.color;
-                    color.a = 0.7f;
+                    color.a = 0.6f;
                     newMat.color = color;
                 }
 
@@ -320,15 +372,8 @@ public class PlayerPlanting : MonoBehaviour
             Renderer renderer = currentZoneIndicator.GetComponent<Renderer>();
             if (renderer != null)
             {
-                Material[] materials = renderer.materials;
-                for (int i = 0; i < materials.Length; i++)
-                {
-                    materials[i] = newMaterial;
-                }
-                renderer.materials = materials;
+                renderer.material = newMaterial;
             }
-
-            currentZoneIndicator.transform.localScale = new Vector3(plantingAreaSize.x, 0.01f, plantingAreaSize.y);
         }
 
         bool canPlantHere = CanPlantHere(position);
@@ -337,21 +382,20 @@ public class PlayerPlanting : MonoBehaviour
 
     private void PlantReal(Vector3 position)
     {
-        if (realPlantPrefab == null || selectedPlantData == null)
+        if (currentPlantPrefab == null || currentPlantData == null)
         {
-            Debug.LogError("PlayerPlanting: Не назначены realPlantPrefab или selectedPlantData!");
+            Debug.LogError("PlayerPlanting: Не назначены префаб растения или данные растения!");
             return;
         }
 
-        // ДОБАВЛЯЕМ ТОЛЬКО ЭТУ ПРОВЕРКУ:
         string errorMessage;
-        if (!selectedPlantData.IsValid(out errorMessage))
+        if (!currentPlantData.IsValid(out errorMessage))
         {
             Debug.LogError($"PlayerPlanting: Данные растения некорректны: {errorMessage}");
             return;
         }
 
-        GameObject planted = Instantiate(realPlantPrefab, position, Quaternion.identity);
+        GameObject planted = Instantiate(currentPlantPrefab, position, Quaternion.identity);
         planted.transform.localScale = Vector3.one;
 
         if (!planted.CompareTag("Plant"))
@@ -362,12 +406,14 @@ public class PlayerPlanting : MonoBehaviour
         PlantedPlant plantScript = planted.GetComponent<PlantedPlant>();
         if (plantScript != null)
         {
-            plantScript.plantData = selectedPlantData;
+            plantScript.plantData = currentPlantData;
         }
         else
         {
             Debug.LogError("Planted prefab missing PlantedPlant component.");
         }
+
+        Debug.Log($"Посажено растение: {currentPlantData.plantName}");
     }
 
     private void SetPreviewColor(Color color)
@@ -384,7 +430,7 @@ public class PlayerPlanting : MonoBehaviour
             {
                 if (materials[i].HasProperty("_Color"))
                 {
-                    color.a = 0.7f;
+                    color.a = 0.6f;
                     materials[i].color = color;
                 }
             }
@@ -421,17 +467,6 @@ public class PlayerPlanting : MonoBehaviour
                 Vector3 size = new Vector3(plantingAreaSize.x, 0.1f, plantingAreaSize.y);
                 Gizmos.DrawWireCube(position, size);
                 Gizmos.DrawCube(position, size * 0.1f);
-            }
-        }
-
-        GameObject[] plants = GameObject.FindGameObjectsWithTag("Plant");
-        foreach (GameObject plant in plants)
-        {
-            if (plant != currentPreview)
-            {
-                Gizmos.color = Color.red;
-                Vector3 size = new Vector3(plantingAreaSize.x, 0.1f, plantingAreaSize.y);
-                Gizmos.DrawWireCube(plant.transform.position, size);
             }
         }
     }

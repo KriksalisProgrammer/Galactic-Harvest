@@ -1,54 +1,100 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UI;
+using System.Collections.Generic;
 
 public class InventoryUI : MonoBehaviour
 {
     [Header("UI References")]
     [SerializeField] private GameObject inventoryPanel;
     [SerializeField] private Transform inventoryGrid;
-    [SerializeField] private GameObject slotPrefab;
+    [SerializeField] private GameObject slotPrefab; // Переименовано для соответствия старому коду
+    [SerializeField] private Button closeButton;
+
+    [Header("Settings")]
+    [SerializeField] private int inventorySize = 24;
+    [SerializeField] private KeyCode toggleKey = KeyCode.Tab;
 
     private List<InventorySlotUI> inventorySlots;
-    private bool isInventoryOpen = false;
+    private bool isOpen = false;
 
+    public bool IsOpen => isOpen;
+
+    private void Start()
+    {
+        // Автоматическая инициализация
+        Initialize();
+    }
+
+    private void Update()
+    {
+        if (Input.GetKeyDown(toggleKey))
+        {
+            ToggleInventory();
+        }
+    }
+
+    // Для обратной совместимости
     public void Initialize()
     {
+        InitializeInventory();
+
+        if (closeButton != null)
+        {
+            closeButton.onClick.AddListener(() => ToggleInventory());
+        }
+
+        // Изначально закрыт
+        SetInventoryActive(false);
+    }
+
+    private void InitializeInventory()
+    {
+        // Проверяем, не инициализированы ли уже слоты
+        if (inventorySlots != null && inventorySlots.Count > 0)
+            return;
+
         inventorySlots = new List<InventorySlotUI>();
 
-        if (InventoryManager.Instance != null)
+        // Если есть prefab и grid, создаем слоты
+        if (slotPrefab != null && inventoryGrid != null)
         {
-            for (int i = 0; i < 24; i++) 
+            for (int i = 0; i < inventorySize; i++)
             {
                 GameObject slotObj = Instantiate(slotPrefab, inventoryGrid);
                 InventorySlotUI slotUI = slotObj.GetComponent<InventorySlotUI>();
+
                 if (slotUI != null)
                 {
                     slotUI.Initialize(i, false);
                     inventorySlots.Add(slotUI);
                 }
             }
-
-            InventoryManager.Instance.OnInventoryChanged += UpdateSlot;
         }
 
-        inventoryPanel.SetActive(false);
-    }
-
-    private void Update()
-    {
-        if (Input.GetKeyDown(KeyCode.Tab))
+        // Подписываемся на события инвентаря
+        if (InventoryManager.Instance != null)
         {
-            ToggleInventory();
+            InventoryManager.Instance.OnInventoryChanged += UpdateInventorySlot;
         }
     }
 
     public void ToggleInventory()
     {
-        isInventoryOpen = !isInventoryOpen;
-        inventoryPanel.SetActive(isInventoryOpen);
+        isOpen = !isOpen;
+        SetInventoryActive(isOpen);
+    }
 
-        if (isInventoryOpen)
+    private void SetInventoryActive(bool active)
+    {
+        isOpen = active;
+
+        if (inventoryPanel != null)
+        {
+            inventoryPanel.SetActive(active);
+        }
+
+        // Управление курсором
+        if (active)
         {
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
@@ -60,9 +106,9 @@ public class InventoryUI : MonoBehaviour
         }
     }
 
-    private void UpdateSlot(int slotIndex, InventorySlot slot)
+    private void UpdateInventorySlot(int slotIndex, InventorySlot slot)
     {
-        if (slotIndex >= 0 && slotIndex < inventorySlots.Count)
+        if (inventorySlots != null && slotIndex >= 0 && slotIndex < inventorySlots.Count)
         {
             inventorySlots[slotIndex].UpdateSlot(slot);
         }
@@ -72,7 +118,7 @@ public class InventoryUI : MonoBehaviour
     {
         if (InventoryManager.Instance != null)
         {
-            InventoryManager.Instance.OnInventoryChanged -= UpdateSlot;
+            InventoryManager.Instance.OnInventoryChanged -= UpdateInventorySlot;
         }
     }
 }

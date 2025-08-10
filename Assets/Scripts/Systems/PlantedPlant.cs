@@ -4,202 +4,191 @@ using UnityEngine;
 
 public class PlantedPlant : MonoBehaviour
 {
-    [Header("Plant Settings")]
-    public PlantData plantData;
-
-    [Header("Debug Info")]
+    [Header("Plant Data")]
+    [SerializeField] private PlantData plantData;
     [SerializeField] private int currentStage = 0;
-    [SerializeField] private bool isGrowing = false;
-    [SerializeField] private bool isReadyForHarvest = false;
+    [SerializeField] private float currentGrowthTime = 0f;
+    [SerializeField] private bool isFullyGrown = false;
+    [SerializeField] private bool hasBeenHarvested = false;
 
-    private GameObject currentModel;
-    private Coroutine growthCoroutine;
+    [Header("Visual")]
+    [SerializeField] private GameObject currentStageModel;
 
-    void Start()
+    private void Update()
     {
-        if (!ValidatePlantData())
-            return;
-
-        StartGrowth();
+        if (!isFullyGrown && plantData != null)
+        {
+            GrowPlant();
+        }
     }
 
-    private bool ValidatePlantData()
+    public void Initialize(PlantData data)
     {
-        if (plantData == null)
-        {
-            Debug.LogError($"PlantData не назначен для {gameObject.name}!");
-            return false;
-        }
-
-        if (plantData.growthStages == null || plantData.growthStages.Count == 0)
-        {
-            Debug.LogError($"У PlantData {plantData.name} нет стадий роста!");
-            return false;
-        }
-
-        // Проверяем, что все стадии имеют префабы
-        for (int i = 0; i < plantData.growthStages.Count; i++)
-        {
-            if (plantData.growthStages[i].modelPrefab == null)
-            {
-                Debug.LogError($"У стадии {i} в {plantData.name} отсутствует modelPrefab!");
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    public void StartGrowth()
-    {
-        if (isGrowing)
-        {
-            Debug.LogWarning($"Растение {gameObject.name} уже растет!");
-            return;
-        }
-
-        growthCoroutine = StartCoroutine(GrowthProcess());
-    }
-
-    private IEnumerator GrowthProcess()
-    {
-        isGrowing = true;
+        plantData = data;
         currentStage = 0;
+        currentGrowthTime = 0f;
+        isFullyGrown = false;
+        hasBeenHarvested = false;
 
-        for (int stageIndex = 0; stageIndex < plantData.growthStages.Count; stageIndex++)
+        UpdatePlantModel();
+    }
+
+    private void GrowPlant()
+    {
+        if (currentStage >= plantData.growthStages.Count) return;
+
+        currentGrowthTime += Time.deltaTime;
+
+        // Проверяем, пора ли переходить к следующей стадии
+        if (currentGrowthTime >= plantData.growthStages[currentStage].timeToNextStage)
         {
-            var stage = plantData.growthStages[stageIndex];
+            currentStage++;
+            currentGrowthTime = 0f;
 
-            // Уничтожаем предыдущую модель
-            if (currentModel != null)
+            if (currentStage >= plantData.growthStages.Count)
             {
-                Destroy(currentModel);
-                currentModel = null;
+                isFullyGrown = true;
+                Debug.Log($"{plantData.plantName} полностью выросло!");
             }
 
-            // Создаем новую модель для текущей стадии
-            if (stage.modelPrefab != null)
-            {
-                currentModel = Instantiate(stage.modelPrefab, transform.position, transform.rotation, transform);
-                // Сбрасываем локальную позицию, чтобы модель была точно в центре
-                currentModel.transform.localPosition = Vector3.zero;
-            }
+            UpdatePlantModel();
+        }
+    }
 
-            currentStage = stageIndex;
-
-            // Если это не последняя стадия, ждем время до следующей
-            if (stageIndex < plantData.growthStages.Count - 1)
-            {
-                yield return new WaitForSeconds(stage.timeToNextStage);
-            }
+    private void UpdatePlantModel()
+    {
+        // Удаляем предыдущую модель
+        if (currentStageModel != null)
+        {
+            DestroyImmediate(currentStageModel);
         }
 
-        // Рост завершен
-        isGrowing = false;
-        isReadyForHarvest = true;
-        currentStage = plantData.growthStages.Count;
-
-        Debug.Log($"Растение {plantData.plantName} выросло и готово к сбору!");
-    }
-    public bool IsReadyForHarvest()
-    {
-        return isReadyForHarvest && !isGrowing;
-    }
-
-    public bool IsGrowing()
-    {
-        return isGrowing;
+        // Создаем новую модель если есть данные
+        if (plantData != null && currentStage < plantData.growthStages.Count)
+        {
+            GameObject stagePrefab = plantData.growthStages[currentStage].modelPrefab;
+            if (stagePrefab != null)
+            {
+                currentStageModel = Instantiate(stagePrefab, transform.position, transform.rotation, transform);
+            }
+        }
     }
 
-    public float GetGrowthProgress()
+    public bool CanHarvest()
     {
-        if (plantData == null || plantData.growthStages.Count == 0)
-            return 0f;
-
-        return (float)currentStage / plantData.growthStages.Count;
-    }
-
-    public string GetCurrentStageName()
-    {
-        if (isReadyForHarvest)
-            return "Готово к сбору";
-
-        if (plantData == null || currentStage >= plantData.growthStages.Count)
-            return "Неизвестно";
-
-        return $"Стадия {currentStage + 1}/{plantData.growthStages.Count}";
+        return isFullyGrown && !hasBeenHarvested;
     }
 
     public void Harvest()
     {
-        if (!IsReadyForHarvest())
-        {
-            Debug.LogWarning($"Растение {plantData?.plantName ?? "Unknown"} еще не готово к сбору!");
-            return;
-        }
+        if (!CanHarvest()) return;
 
-        if (plantData == null)
-        {
-            Debug.LogError("Невозможно собрать урожай: plantData == null");
-            return;
-        }
+        hasBeenHarvested = true;
 
-        // Создаем плоды
-        if (plantData.fruitPrefab != null && plantData.fruitAmount > 0)
+        // Добавляем плоды сразу в инвентарь
+        if (InventoryManager.Instance != null)
         {
-            for (int i = 0; i < plantData.fruitAmount; i++)
+            Item fruitItem = GetFruitItem();
+            if (fruitItem != null)
             {
-                // Разбрасываем плоды в небольшом радиусе
-                Vector3 spawnPosition = transform.position + new Vector3(
-                    Random.Range(-0.5f, 0.5f),
-                    Random.Range(0f, 0.3f),
-                    Random.Range(-0.5f, 0.5f)
-                );
-
-                GameObject fruit = Instantiate(plantData.fruitPrefab, spawnPosition, Quaternion.identity);
-
-                // Добавляем небольшой импульс плодам, если у них есть Rigidbody
-                Rigidbody fruitRb = fruit.GetComponent<Rigidbody>();
-                if (fruitRb != null)
+                // Пробуем добавить в хотбар
+                if (!InventoryManager.Instance.AddItemToHotbar(fruitItem, plantData.fruitAmount))
                 {
-                    Vector3 randomForce = new Vector3(
-                        Random.Range(-2f, 2f),
-                        Random.Range(1f, 3f),
-                        Random.Range(-2f, 2f)
-                    );
-                    fruitRb.AddForce(randomForce, ForceMode.Impulse);
+                    // Если не получилось, добавляем в инвентарь
+                    if (InventoryManager.Instance.AddItem(fruitItem, plantData.fruitAmount))
+                    {
+                        Debug.Log($"Собрано: {fruitItem.itemName} x{plantData.fruitAmount}");
+                    }
+                    else
+                    {
+                        Debug.Log("Инвентарь полон! Урожай потерян.");
+                    }
+                }
+                else
+                {
+                    Debug.Log($"Собрано: {fruitItem.itemName} x{plantData.fruitAmount}");
                 }
             }
-
-            Debug.Log($"Собрано {plantData.fruitAmount} {plantData.plantName}!");
         }
 
-        // Уничтожаем растение
+        // Уничтожаем растение после сбора урожая
         Destroy(gameObject);
     }
 
-    // Принудительная остановка роста (если нужно)
-    public void StopGrowth()
+    private Item GetFruitItem()
     {
-        if (growthCoroutine != null)
+        // Пытаемся найти соответствующий Item для плода
+        // Это нужно настроить в зависимости от вашей структуры ScriptableObjects
+        string fruitName = plantData.plantName + "GameObject";
+        Item fruitItem = Resources.Load<Item>($"ScriptableObjects/Plant/{fruitName}SO");
+
+        if (fruitItem == null)
         {
-            StopCoroutine(growthCoroutine);
-            growthCoroutine = null;
+            // Создаем временный Item если не найден
+            fruitItem = ScriptableObject.CreateInstance<Item>();
+            fruitItem.itemName = plantData.plantName;
+            fruitItem.itemType = ItemType.Resource;
         }
-        isGrowing = false;
+
+        return fruitItem;
     }
 
-    private void OnDestroy()
+    private IEnumerator DestroyAfterDelay(float delay)
     {
-        StopGrowth();
+        yield return new WaitForSeconds(delay);
+        Destroy(gameObject);
     }
 
-    // Для отладки в инспекторе
-    private void OnValidate()
+    // Для взаимодействия с растением (клик мышью)
+    private void OnMouseDown()
     {
-        if (Application.isPlaying && plantData != null)
+        if (CanHarvest())
         {
-            gameObject.name = $"Plant_{plantData.plantName}_{GetInstanceID()}";
+            // Проверяем расстояние до игрока
+            PlayerController player = FindObjectOfType<PlayerController>();
+            if (player != null)
+            {
+                float distance = Vector3.Distance(transform.position, player.transform.position);
+                if (distance <= 5f) // Дистанция взаимодействия
+                {
+                    Harvest();
+                }
+                else
+                {
+                    Debug.Log("Слишком далеко от растения");
+                }
+            }
         }
     }
+
+    // Информация для отладки
+    private void OnDrawGizmos()
+    {
+        if (isFullyGrown && !hasBeenHarvested)
+        {
+            Gizmos.color = Color.green;
+            Gizmos.DrawWireSphere(transform.position, 0.5f);
+        }
+        else if (isFullyGrown && hasBeenHarvested)
+        {
+            Gizmos.color = Color.gray;
+            Gizmos.DrawWireSphere(transform.position, 0.5f);
+        }
+        else
+        {
+            Gizmos.color = Color.yellow;
+            Gizmos.DrawWireSphere(transform.position, 0.3f);
+        }
+    }
+
+    // Геттеры для UI и других систем
+    public PlantData GetPlantData() => plantData;
+    public int GetCurrentStage() => currentStage;
+    public float GetGrowthProgress()
+    {
+        if (plantData == null || currentStage >= plantData.growthStages.Count) return 1f;
+        return currentGrowthTime / plantData.growthStages[currentStage].timeToNextStage;
+    }
+    public bool IsFullyGrown() => isFullyGrown;
+    public bool HasBeenHarvested() => hasBeenHarvested;
 }

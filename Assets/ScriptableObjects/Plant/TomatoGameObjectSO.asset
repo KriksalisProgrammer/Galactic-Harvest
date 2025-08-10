@@ -16,10 +16,10 @@ MonoBehaviour:
   description: "\u041F\u043E\u043C\u0438\u0434\u043E\u0440 \u043A\u043E\u0442\u043E\u0440\u044B\u0439
     \u043C\u044B \u043C\u043E\u0436\u0435\u043C \u043F\u043E\u043B\u0443\u0447\u0430\u0442\u044C"
   icon: {fileID: 21300000, guid: e14b7828eaf9ee545b76e06b3e4919d1, type: 3}
-  prefab: {fileID: 0}
+  prefab: {fileID: 4630291896863156165, guid: 9a454dcb672e0e7499d704dbf85af928, type: 3}
   itemType: 0
   isStackable: 1
   maxStackSize: 64
   weight: 1
-  isConsumable: 0
-  isEquippable: 0
+  isConsumable: 1
+  isEquippable: 1

@@ -12,6 +12,8 @@ GameObject:
   - component: {fileID: 2109336336413444806}
   - component: {fileID: 2109336336412313606}
   - component: {fileID: -2470107364595713624}
+  - component: {fileID: 1673289779985460099}
+  - component: {fileID: -8551776970361649083}
   m_Layer: 0
   m_Name: plant_pumpkin_S2
   m_TagString: Plant
@@ -85,6 +87,45 @@ MeshRenderer:
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
 --- !u!65 &-2470107364595713624
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2109336336410121926}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 0.67579854, y: 0.14771068, z: 0.8743489}
+  m_Center: {x: 0.13517646, y: 0.060352903, z: 0.4362396}
+--- !u!114 &1673289779985460099
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2109336336410121926}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b25198a51a9bca243901b221ed7b401d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  plantData: {fileID: 11400000, guid: db65a0905fc0a9242b4cbecf65574875, type: 2}
+  currentStage: 2
+  currentGrowthTime: 10
+  isFullyGrown: 0
+  hasBeenHarvested: 0
+  currentStageModel: {fileID: 2109336336410121926}
+--- !u!65 &-8551776970361649083
 BoxCollider:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}

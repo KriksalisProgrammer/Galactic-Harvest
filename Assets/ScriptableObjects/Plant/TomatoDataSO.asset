@@ -23,9 +23,6 @@ MonoBehaviour:
   - modelPrefab: {fileID: 2325672644264147787, guid: 0cea22185d346174ab57e8d3cc29a6ce,
       type: 3}
     timeToNextStage: 8
-  - modelPrefab: {fileID: 5238493209296013577, guid: 6f56a9eb8e5a99542b9a474a4be95b3d,
-      type: 3}
-    timeToNextStage: 4
   fruitAmount: 10
   fruitPrefab: {fileID: 6989544482311549766, guid: ff3ab91f23db82e46bfa6493431a0313,
     type: 3}

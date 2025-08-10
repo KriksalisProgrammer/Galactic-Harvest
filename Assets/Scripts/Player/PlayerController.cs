@@ -19,6 +19,8 @@ public class PlayerController : MonoBehaviour
     private float verticalVelocity = 0f;
     private bool cursorLocked = true;
 
+    private bool inventoryOpen = false;
+
     void Start()
     {
         controller = GetComponent<CharacterController>();
@@ -30,13 +32,20 @@ public class PlayerController : MonoBehaviour
         }
 
         SetCursorState(true);
+
+        InventoryUI inventoryUI = FindObjectOfType<InventoryUI>();
+        if (inventoryUI != null)
+        {
+            
+        }
     }
 
     void Update()
     {
         HandleCursorToggle();
+        CheckInventoryState();
 
-        if (cursorLocked)
+        if (cursorLocked && !inventoryOpen)
         {
             HandleMouseLook();
         }
@@ -44,18 +53,42 @@ public class PlayerController : MonoBehaviour
         HandleMovement();
     }
 
+    private void CheckInventoryState()
+    {
+        InventoryUI inventoryUI = FindObjectOfType<InventoryUI>();
+        if (inventoryUI != null)
+        {
+            bool wasOpen = inventoryOpen;
+            if (Input.GetKeyDown(KeyCode.Tab))
+            {
+                inventoryOpen = !inventoryOpen;
+                SetCursorState(!inventoryOpen);
+            }
+        }
+    }
+
     private void HandleCursorToggle()
     {
         if (Input.GetKeyDown(KeyCode.Escape))
         {
+            if (inventoryOpen)
+            {
+
+                InventoryUI inventoryUI = FindObjectOfType<InventoryUI>();
+                if (inventoryUI != null)
+                {
+                    inventoryUI.ToggleInventory();
+                }
+                inventoryOpen = false;
+            }
+
             cursorLocked = !cursorLocked;
-            SetCursorState(cursorLocked);
+            SetCursorState(cursorLocked && !inventoryOpen);
         }
     }
 
     private void SetCursorState(bool locked)
     {
-        cursorLocked = locked;
         Cursor.lockState = locked ? CursorLockMode.Locked : CursorLockMode.None;
         Cursor.visible = !locked;
     }
@@ -78,6 +111,8 @@ public class PlayerController : MonoBehaviour
 
     private void HandleMovement()
     {
+        if (inventoryOpen) return;
+
         float moveX = Input.GetAxis("Horizontal");
         float moveZ = Input.GetAxis("Vertical");
 
@@ -100,12 +135,22 @@ public class PlayerController : MonoBehaviour
             }
             else
             {
-                verticalVelocity = -0.5f; 
+                verticalVelocity = -0.5f;
             }
         }
         else
         {
             verticalVelocity += gravity * Time.deltaTime;
         }
+    }
+
+    public Vector3 GetPlayerPosition()
+    {
+        return transform.position;
+    }
+
+    public Vector3 GetPlayerRotation()
+    {
+        return transform.eulerAngles;
     }
 }

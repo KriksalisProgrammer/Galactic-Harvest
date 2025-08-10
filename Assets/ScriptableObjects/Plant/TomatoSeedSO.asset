@@ -12,20 +12,23 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c574f53ceb9940548852d793e1e3a669, type: 3}
   m_Name: TomatoSeedSO
   m_EditorClassIdentifier: 
-  itemName: 
-  description: 
-  icon: {fileID: 0}
-  prefab: {fileID: 0}
-  itemType: 0
+  itemName: "\u0421\u0435\u043C\u0435\u043D\u0430 Tomato"
+  description: "\u0421\u0435\u043C\u0430\u043D\u0430 \u0447\u0442\u043E \u0431 \u043F\u043E\u0441\u0430\u0434\u0438\u0442\u044C
+    \u043F\u043E\u043C\u0438\u0434\u043E\u0440"
+  icon: {fileID: 21300000, guid: e14b7828eaf9ee545b76e06b3e4919d1, type: 3}
+  prefab: {fileID: 4278085833763017642, guid: 2f717cc438b08ac4b9bb7215c8c6ebf8, type: 3}
+  itemType: 2
   isStackable: 1
   maxStackSize: 64
   weight: 1
-  isConsumable: 0
+  isConsumable: 1
   isEquippable: 0
-  plantData: {fileID: 0}
-  plantPrefab: {fileID: 0}
-  previewPrefab: {fileID: 0}
+  plantData: {fileID: 11400000, guid: 695cf2aaee2bcb44e97bef249517ae7d, type: 2}
+  plantPrefab: {fileID: 4630291896863156165, guid: 9a454dcb672e0e7499d704dbf85af928,
+    type: 3}
+  previewPrefab: {fileID: 8499996933784062159, guid: cc44ca9472796d042beea64891bea2c6,
+    type: 3}
   validGroundLayers:
     serializedVersion: 2
-    m_Bits: 4294967295
+    m_Bits: 8
   minPlantingDistance: 1

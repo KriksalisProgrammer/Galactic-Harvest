@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+
 public class HotbarManager : MonoBehaviour
 {
     [SerializeField] private int activeSlotIndex = 0;
@@ -34,6 +35,11 @@ public class HotbarManager : MonoBehaviour
         {
             SetActiveSlot((activeSlotIndex - 1 + maxSlots) % maxSlots);
         }
+
+        if (Input.GetMouseButtonDown(0))
+        {
+            UseActiveItem();
+        }
     }
 
     public void SetActiveSlot(int index)
@@ -47,5 +53,14 @@ public class HotbarManager : MonoBehaviour
     public int GetActiveSlotIndex()
     {
         return activeSlotIndex;
+    }
+
+    private void UseActiveItem()
+    {
+        InventoryManager inventoryManager = InventoryManager.Instance;
+        if (inventoryManager != null)
+        {
+            inventoryManager.UseActiveHotbarItem();
+        }
     }
 }

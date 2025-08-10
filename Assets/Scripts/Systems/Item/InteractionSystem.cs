@@ -40,6 +40,9 @@ public class InteractionSystem : MonoBehaviour
 
     private void CheckForInteractables()
     {
+        // Clear previous interactables
+        currentInteractables.Clear();
+
         // Raycast from camera to check for interactables
         Ray ray = playerCamera.ScreenPointToRay(new Vector3(Screen.width / 2, Screen.height / 2, 0));
         RaycastHit hit;

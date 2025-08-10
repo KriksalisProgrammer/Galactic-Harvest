@@ -201,15 +201,6 @@ public class InventoryManager : MonoBehaviour
         return remainingQuantity == 0;
     }
 
-    public void UseActiveHotbarItem()
-    {
-        if (hotbarManager != null)
-        {
-            int activeSlot = hotbarManager.GetActiveSlotIndex();
-            UseHotbarItem(activeSlot);
-        }
-    }
-
     public void UseHotbarItem(int slotIndex)
     {
         if (slotIndex < 0 || slotIndex >= hotbar.Count) return;
@@ -485,6 +476,19 @@ public class InventoryManager : MonoBehaviour
             Debug.LogWarning($"Could not find item: {itemName}");
         }
         return item;
+    }
+    public void UseActiveHotbarItem()
+    {
+        HotbarController hotbarController = FindObjectOfType<HotbarController>();
+        if (hotbarController != null)
+        {
+            int activeSlot = hotbarController.GetActiveSlotIndex();
+            UseHotbarItem(activeSlot);
+        }
+        else
+        {
+            Debug.LogWarning("HotbarController not found! Cannot use active hotbar item.");
+        }
     }
 
     // Auto-save on important events

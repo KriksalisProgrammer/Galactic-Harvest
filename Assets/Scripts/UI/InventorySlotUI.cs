@@ -11,9 +11,10 @@ public class InventorySlotUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
     public Image slotBackground;
 
     [Header("Settings")]
-    public Color normalColor = Color.white;
-    public Color highlightColor = Color.yellow;
-    public Color selectedColor = Color.green;
+    public Color normalColor = new Color(0.7f, 0.7f, 0.7f, 1f);
+    public Color highlightColor = new Color(1f, 1f, 0.8f, 1f);
+    public Color selectedColor = new Color(0.8f, 1f, 0.8f, 1f);
+    public Color canDropColor = new Color(0.8f, 0.8f, 1f, 1f);
 
     private InventorySlot slot;
     private int slotIndex;
@@ -39,6 +40,19 @@ public class InventorySlotUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
 
     public void UpdateVisuals()
     {
+        // Check if UI components are assigned
+        if (itemIcon == null)
+        {
+            Debug.LogError("InventorySlotUI: itemIcon is not assigned! Please assign it in the inspector.");
+            return;
+        }
+
+        if (quantityText == null)
+        {
+            Debug.LogError("InventorySlotUI: quantityText is not assigned! Please assign it in the inspector.");
+            return;
+        }
+
         if (slot == null || slot.IsEmpty())
         {
             itemIcon.sprite = null;
@@ -77,6 +91,19 @@ public class InventorySlotUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
     public void OnPointerDown(PointerEventData eventData)
     {
         OnSlotClicked?.Invoke(slotIndex, isHotbarSlot);
+
+        // Visual feedback for click
+        if (slotBackground != null)
+        {
+            SetHighlighted(true);
+            StartCoroutine(ResetHighlightAfterDelay(0.1f));
+        }
+    }
+
+    private System.Collections.IEnumerator ResetHighlightAfterDelay(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        SetHighlighted(false);
     }
 
     public void OnDrag(PointerEventData eventData)

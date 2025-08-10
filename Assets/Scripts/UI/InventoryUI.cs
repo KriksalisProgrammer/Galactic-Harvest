@@ -41,14 +41,34 @@ public class InventoryUI : MonoBehaviour
 
     private void Update()
     {
+        // Handle Tab key for toggling
         if (Input.GetKeyDown(toggleKey))
         {
             ToggleInventory();
+        }
+
+        // Handle Escape key for closing only
+        if (Input.GetKeyDown(KeyCode.Escape) && isInventoryOpen)
+        {
+            CloseInventory();
         }
     }
 
     public void Initialize()
     {
+        // Check if required references are assigned
+        if (inventorySlotsParent == null)
+        {
+            Debug.LogError("InventoryUI: inventorySlotsParent is not assigned! Please assign it in the inspector.");
+            return;
+        }
+
+        if (inventorySlotPrefab == null)
+        {
+            Debug.LogError("InventoryUI: inventorySlotPrefab is not assigned! Please assign it in the inspector.");
+            return;
+        }
+
         // Clear existing slots
         foreach (Transform child in inventorySlotsParent)
         {
@@ -102,18 +122,7 @@ public class InventoryUI : MonoBehaviour
         isInventoryOpen = open;
         inventoryPanel.SetActive(open);
 
-        // Update cursor state
-        if (open)
-        {
-            Cursor.lockState = CursorLockMode.None;
-            Cursor.visible = true;
-        }
-        else
-        {
-            Cursor.lockState = CursorLockMode.Locked;
-            Cursor.visible = false;
-        }
-
+        // Don't manage cursor here - let PlayerController handle it
         OnInventoryToggled?.Invoke(open);
 
         if (open)

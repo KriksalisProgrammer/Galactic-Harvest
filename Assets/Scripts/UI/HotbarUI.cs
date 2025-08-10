@@ -108,6 +108,8 @@ public class HotbarUI : MonoBehaviour
         {
             hotbarSlots[selectedSlotIndex].SetSelected(true);
         }
+
+        Debug.Log($"Active hotbar slot changed to: {newIndex}");
     }
 
     private void OnSlotClicked(int slotIndex, bool isHotbarSlot)

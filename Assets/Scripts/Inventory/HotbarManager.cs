@@ -2,7 +2,6 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-
 public class HotbarManager : MonoBehaviour
 {
     [SerializeField] private int activeSlotIndex = 0;
@@ -60,7 +59,7 @@ public class HotbarManager : MonoBehaviour
         InventoryManager inventoryManager = InventoryManager.Instance;
         if (inventoryManager != null)
         {
-            inventoryManager.UseActiveHotbarItem();
+            inventoryManager.UseHotbarItem(activeSlotIndex);
         }
     }
 }

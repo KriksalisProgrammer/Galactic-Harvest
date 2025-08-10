@@ -1,28 +1,42 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
-using System.Collections.Generic;
 
 public class InventoryUI : MonoBehaviour
 {
     [Header("UI References")]
-    [SerializeField] private GameObject inventoryPanel;
-    [SerializeField] private Transform inventoryGrid;
-    [SerializeField] private GameObject slotPrefab; // Переименовано для соответствия старому коду
-    [SerializeField] private Button closeButton;
+    public GameObject inventoryPanel;
+    public Transform inventorySlotsParent;
+    public GameObject inventorySlotPrefab;
+    public Button closeButton;
 
     [Header("Settings")]
-    [SerializeField] private int inventorySize = 24;
-    [SerializeField] private KeyCode toggleKey = KeyCode.Tab;
+    public int inventorySize = 24;
+    public KeyCode toggleKey = KeyCode.Tab;
 
-    private List<InventorySlotUI> inventorySlots;
-    private bool isOpen = false;
+    private List<InventorySlotUI> inventorySlots = new List<InventorySlotUI>();
+    private bool isInventoryOpen = false;
 
-    public bool IsOpen => isOpen;
+    public System.Action<bool> OnInventoryToggled;
 
     private void Start()
     {
-        // Автоматическая инициализация
         Initialize();
+
+        // Setup close button
+        if (closeButton != null)
+        {
+            closeButton.onClick.AddListener(CloseInventory);
+        }
+
+        // Subscribe to inventory changes
+        if (InventoryManager.Instance != null)
+        {
+            InventoryManager.Instance.OnInventoryChanged += UpdateSlot;
+        }
+
+        // Start with inventory closed
+        SetInventoryState(false);
     }
 
     private void Update()
@@ -33,68 +47,63 @@ public class InventoryUI : MonoBehaviour
         }
     }
 
-    // Для обратной совместимости
     public void Initialize()
     {
-        InitializeInventory();
-
-        if (closeButton != null)
+        // Clear existing slots
+        foreach (Transform child in inventorySlotsParent)
         {
-            closeButton.onClick.AddListener(() => ToggleInventory());
+            if (Application.isPlaying)
+                Destroy(child.gameObject);
+            else
+                DestroyImmediate(child.gameObject);
         }
+        inventorySlots.Clear();
 
-        // Изначально закрыт
-        SetInventoryActive(false);
-    }
-
-    private void InitializeInventory()
-    {
-        // Проверяем, не инициализированы ли уже слоты
-        if (inventorySlots != null && inventorySlots.Count > 0)
-            return;
-
-        inventorySlots = new List<InventorySlotUI>();
-
-        // Если есть prefab и grid, создаем слоты
-        if (slotPrefab != null && inventoryGrid != null)
+        // Create inventory slots
+        for (int i = 0; i < inventorySize; i++)
         {
-            for (int i = 0; i < inventorySize; i++)
+            GameObject slotObj = Instantiate(inventorySlotPrefab, inventorySlotsParent);
+            InventorySlotUI slotUI = slotObj.GetComponent<InventorySlotUI>();
+
+            if (slotUI != null)
             {
-                GameObject slotObj = Instantiate(slotPrefab, inventoryGrid);
-                InventorySlotUI slotUI = slotObj.GetComponent<InventorySlotUI>();
+                slotUI.OnSlotClicked += OnSlotClicked;
+                slotUI.OnItemMoved += OnItemMoved;
+                inventorySlots.Add(slotUI);
 
-                if (slotUI != null)
-                {
-                    slotUI.Initialize(i, false);
-                    inventorySlots.Add(slotUI);
-                }
+                // Initialize with empty slot
+                InventorySlot emptySlot = new InventorySlot();
+                slotUI.SetSlot(emptySlot, i, false);
             }
-        }
-
-        // Подписываемся на события инвентаря
-        if (InventoryManager.Instance != null)
-        {
-            InventoryManager.Instance.OnInventoryChanged += UpdateInventorySlot;
+            else
+            {
+                Debug.LogError("InventoryUI: InventorySlotUI component not found on inventory slot prefab!");
+            }
         }
     }
 
     public void ToggleInventory()
     {
-        isOpen = !isOpen;
-        SetInventoryActive(isOpen);
+        SetInventoryState(!isInventoryOpen);
     }
 
-    private void SetInventoryActive(bool active)
+    public void OpenInventory()
     {
-        isOpen = active;
+        SetInventoryState(true);
+    }
 
-        if (inventoryPanel != null)
-        {
-            inventoryPanel.SetActive(active);
-        }
+    public void CloseInventory()
+    {
+        SetInventoryState(false);
+    }
 
-        // Управление курсором
-        if (active)
+    private void SetInventoryState(bool open)
+    {
+        isInventoryOpen = open;
+        inventoryPanel.SetActive(open);
+
+        // Update cursor state
+        if (open)
         {
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
@@ -104,21 +113,63 @@ public class InventoryUI : MonoBehaviour
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;
         }
+
+        OnInventoryToggled?.Invoke(open);
+
+        if (open)
+        {
+            RefreshAllSlots();
+        }
     }
 
-    private void UpdateInventorySlot(int slotIndex, InventorySlot slot)
+    public void UpdateSlot(int index, InventorySlot slot)
     {
-        if (inventorySlots != null && slotIndex >= 0 && slotIndex < inventorySlots.Count)
+        if (index >= 0 && index < inventorySlots.Count)
         {
-            inventorySlots[slotIndex].UpdateSlot(slot);
+            inventorySlots[index].SetSlot(slot, index, false);
         }
+    }
+
+    private void OnSlotClicked(int slotIndex, bool isHotbarSlot)
+    {
+        // Handle inventory slot clicks if needed
+        Debug.Log($"Inventory slot {slotIndex} clicked");
+    }
+
+    private void OnItemMoved(int fromIndex, int toIndex, bool fromHotbar, bool toHotbar)
+    {
+        if (InventoryManager.Instance != null)
+        {
+            InventoryManager.Instance.MoveItem(fromIndex, toIndex, fromHotbar, toHotbar);
+        }
+    }
+
+    // Public method to refresh all slots
+    public void RefreshAllSlots()
+    {
+        if (InventoryManager.Instance != null)
+        {
+            for (int i = 0; i < inventorySize; i++)
+            {
+                InventorySlot slot = InventoryManager.Instance.GetInventorySlot(i);
+                if (slot != null)
+                {
+                    UpdateSlot(i, slot);
+                }
+            }
+        }
+    }
+
+    public bool IsInventoryOpen()
+    {
+        return isInventoryOpen;
     }
 
     private void OnDestroy()
     {
         if (InventoryManager.Instance != null)
         {
-            InventoryManager.Instance.OnInventoryChanged -= UpdateInventorySlot;
+            InventoryManager.Instance.OnInventoryChanged -= UpdateSlot;
         }
     }
 }

@@ -1,59 +1,18 @@
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-[CreateAssetMenu(fileName = "NewPlant", menuName = "Farming/Plant Data")]
+[CreateAssetMenu(fileName = "New Plant Data", menuName = "Plants/Plant Data")]
 public class PlantData : ScriptableObject
 {
-    [Header("Basic Info")]
-    public string plantName;
-
-    [System.Serializable]
-    public class GrowthStage
-    {
-        public GameObject modelPrefab;
-        public float timeToNextStage;
-    }
+    [Header("Plant Info")]
+    public string plantName = "Plant";
 
     [Header("Growth Stages")]
-    public List<GrowthStage> growthStages = new List<GrowthStage>();
+    public List<PlantGrowthStage> growthStages = new List<PlantGrowthStage>();
 
     [Header("Harvest")]
     public int fruitAmount = 1;
     public GameObject fruitPrefab;
-
-    [Header("Requirements")]
-    public float minTemperature = 0f;
-    public float maxTemperature = 40f;
-    public float waterNeed = 1f; 
-
-    public bool IsValid(out string errorMessage)
-    {
-        errorMessage = "";
-
-        if (string.IsNullOrEmpty(plantName))
-        {
-            errorMessage = "Не указано название растения";
-            return false;
-        }
-        if (growthStages == null || growthStages.Count == 0)
-        {
-            errorMessage = "Не указаны стадии роста";
-            return false;
-        }
-        for (int i = 0; i < growthStages.Count; i++)
-        {
-            var stage = growthStages[i];
-
-            if (stage.modelPrefab == null)
-            {
-                errorMessage = $"У стадии {i + 1} отсутствует префаб модели";
-                return false;
-            }
-        }
-
-        return true;
-    }
 
     public float GetTotalGrowthTime()
     {
@@ -65,8 +24,17 @@ public class PlantData : ScriptableObject
         return total;
     }
 
-    public int GetTotalStages()
+    public int GetStageCount()
     {
         return growthStages.Count;
+    }
+
+    public PlantGrowthStage GetStage(int index)
+    {
+        if (index >= 0 && index < growthStages.Count)
+        {
+            return growthStages[index];
+        }
+        return null;
     }
 }

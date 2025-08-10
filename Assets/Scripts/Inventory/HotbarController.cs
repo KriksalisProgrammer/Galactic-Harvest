@@ -1,211 +1,111 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
-using TMPro;
 
 public class HotbarController : MonoBehaviour
 {
-    [SerializeField] private HotbarUI hotbarUI;
-    [SerializeField] private HotbarManager hotbarManager;
-    [SerializeField] private HotbarSlot[] slots = new HotbarSlot[8];
-    [SerializeField] private Item[] testItems;
-    void Start()
+    [Header("Settings")]
+    public int hotbarSize = 8;
+    public KeyCode[] hotbarKeys = {
+        KeyCode.Alpha1, KeyCode.Alpha2, KeyCode.Alpha3, KeyCode.Alpha4,
+        KeyCode.Alpha5, KeyCode.Alpha6, KeyCode.Alpha7, KeyCode.Alpha8
+    };
+
+    private int activeSlotIndex = 0;
+    private HotbarUI hotbarUI;
+    private InventoryManager inventoryManager;
+
+    public System.Action<int> OnActiveSlotChanged;
+
+    private void Start()
     {
-        InitializeSlots();
-        UpdateUI();
+        hotbarUI = FindObjectOfType<HotbarUI>();
+        inventoryManager = InventoryManager.Instance;
 
-
+        // Subscribe to hotbar manager events
+        HotbarManager hotbarManager = FindObjectOfType<HotbarManager>();
         if (hotbarManager != null)
         {
-            hotbarManager.OnSlotChanged += OnSlotChanged;
+            hotbarManager.OnSlotChanged += SetActiveSlot;
         }
-        for (int i = 0; i < testItems.Length; i++)
+    }
+
+    private void Update()
+    {
+        HandleHotbarInput();
+    }
+
+    private void HandleHotbarInput()
+    {
+        // Check number key presses
+        for (int i = 0; i < Mathf.Min(hotbarSize, hotbarKeys.Length); i++)
         {
-            if (testItems[i] != null)
+            if (Input.GetKeyDown(hotbarKeys[i]))
             {
-                TryAddItem(testItems[i]);
+                SetActiveSlot(i);
+                break;
+            }
+        }
+
+        // Handle mouse wheel scrolling
+        float scroll = Input.GetAxis("Mouse ScrollWheel");
+        if (scroll > 0f)
+        {
+            SetActiveSlot((activeSlotIndex + 1) % hotbarSize);
+        }
+        else if (scroll < 0f)
+        {
+            SetActiveSlot((activeSlotIndex - 1 + hotbarSize) % hotbarSize);
+        }
+
+        // Use active item on left click (if not in planting mode)
+        if (Input.GetMouseButtonDown(0))
+        {
+            PlayerPlanting planting = FindObjectOfType<PlayerPlanting>();
+            if (planting == null || !planting.IsInPlantingMode())
+            {
+                UseActiveItem();
             }
         }
     }
 
-    void Update()
+    public void SetActiveSlot(int slotIndex)
     {
-        HandleUseInput();
+        if (slotIndex < 0 || slotIndex >= hotbarSize) return;
 
+        activeSlotIndex = slotIndex;
+        OnActiveSlotChanged?.Invoke(activeSlotIndex);
 
-        Item currentItem = GetSelectedItem();
-        if (currentItem != null && Input.GetKeyDown(KeyCode.I))
+        // Update UI
+        if (hotbarUI != null)
         {
-            Debug.Log("Выбран: " + currentItem.itemName);
+            // The HotbarUI will handle visual updates through the HotbarManager
         }
     }
 
-    private void OnDestroy()
+    public void UseActiveItem()
     {
-        if (hotbarManager != null)
+        if (inventoryManager != null)
         {
-            hotbarManager.OnSlotChanged -= OnSlotChanged;
+            inventoryManager.UseHotbarItem(activeSlotIndex);
         }
     }
 
-    private void InitializeSlots()
+    public int GetActiveSlotIndex()
     {
-        for (int i = 0; i < slots.Length; i++)
+        return activeSlotIndex;
+    }
+
+    public InventorySlot GetActiveSlot()
+    {
+        if (inventoryManager != null)
         {
-            if (slots[i] == null)
-                slots[i] = new HotbarSlot();
+            return inventoryManager.GetHotbarSlot(activeSlotIndex);
         }
+        return null;
     }
 
-    private void OnSlotChanged(int newSlotIndex)
+    public Item GetActiveItem()
     {
-
-        Item selectedItem = GetSelectedItem();
-        if (selectedItem != null)
-        {
-            Debug.Log($"Переключен на слот {newSlotIndex}: {selectedItem.itemName}");
-        }
-    }
-
-    public void SetItem(int index, Item item)
-    {
-        if (index < 0 || index >= slots.Length) return;
-
-        slots[index].item = item;
-        UpdateUI();
-    }
-
-    public Item GetSelectedItem()
-    {
-        if (hotbarManager == null) return null;
-
-        int index = hotbarManager.GetActiveSlotIndex();
-        if (index < 0 || index >= slots.Length) return null;
-
-        return slots[index].item;
-    }
-
-    public void RemoveItem(int index)
-    {
-        if (index < 0 || index >= slots.Length) return;
-
-        slots[index].item = null;
-        UpdateUI();
-    }
-
-    public bool HasItem(int index)
-    {
-        if (index < 0 || index >= slots.Length) return false;
-        return slots[index].item != null;
-    }
-
-    private void UpdateUI()
-    {
-        if (hotbarUI == null) return;
-
-        for (int i = 0; i < slots.Length; i++)
-        {
-            Sprite icon = slots[i].item != null ? slots[i].item.icon : null;
-            hotbarUI.SetSlotIcon(i, icon);
-        }
-    }
-
-    void HandleUseInput()
-    {
-        if (Input.GetMouseButtonDown(0))
-        {
-            UseSelectedItem();
-        }
-
-        if (Input.GetMouseButtonDown(1)) 
-        {
-            UseSelectedItemAlt();
-        }
-    }
-
-    private void UseSelectedItem()
-    {
-        Item selectedItem = GetSelectedItem();
-        if (selectedItem == null) return;
-
-        Debug.Log($"Используем предмет: {selectedItem.itemName}");
-
-        switch (selectedItem.itemType)
-        {
-            case ItemType.Consumable:
-                ConsumeItem(selectedItem);
-                break;
-            case ItemType.Tool:
-            case ItemType.Weapon:
-                EquipItem(selectedItem);
-                break;
-            case ItemType.Material:
-            case ItemType.Misc:
-                PlaceItemInWorld(selectedItem);
-                break;
-        }
-    }
-
-    private void UseSelectedItemAlt()
-    {
-        Item selectedItem = GetSelectedItem();
-        if (selectedItem == null) return;
-
-
-        Debug.Log($"Альтернативное использование: {selectedItem.itemName}");
-        DropItem(selectedItem);
-    }
-
-    private void ConsumeItem(Item item)
-    {
-        Debug.Log($"Потребляем: {item.itemName}");
-
-
-        int currentSlot = hotbarManager.GetActiveSlotIndex();
-        RemoveItem(currentSlot);
-    }
-
-    private void EquipItem(Item item)
-    {
-        Debug.Log($"Экипируем: {item.itemName}");
-
-    }
-
-    private void PlaceItemInWorld(Item item)
-    {
-        Debug.Log($"Размещаем в мире: {item.itemName}");
-
-        int currentSlot = hotbarManager.GetActiveSlotIndex();
-        RemoveItem(currentSlot);
-    }
-
-    private void DropItem(Item item)
-    {
-        Debug.Log($"Выбрасываем: {item.itemName}");
-
-
-        int currentSlot = hotbarManager.GetActiveSlotIndex();
-        RemoveItem(currentSlot);
-    }
-
-    public int FindEmptySlot()
-    {
-        for (int i = 0; i < slots.Length; i++)
-        {
-            if (slots[i].item == null)
-                return i;
-        }
-        return -1;
-    }
-
-    public bool TryAddItem(Item item)
-    {
-        int emptySlot = FindEmptySlot();
-        if (emptySlot != -1)
-        {
-            SetItem(emptySlot, item);
-            return true;
-        }
-        return false;
+        InventorySlot activeSlot = GetActiveSlot();
+        return activeSlot?.item;
     }
 }

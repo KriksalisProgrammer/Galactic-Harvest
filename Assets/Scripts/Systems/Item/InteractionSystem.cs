@@ -1,28 +1,21 @@
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 
-public interface IInteractable
-{
-    string GetInteractionPrompt();
-    void Interact();
-    bool CanInteract();
-}
-
 public class InteractionSystem : MonoBehaviour
 {
-    [Header("Settings")]
-    [SerializeField] private float interactionRange = 3f;
-    [SerializeField] private LayerMask interactionLayers = -1;
+    [Header("UI References")]
+    public GameObject interactionPrompt;
+    public TextMeshProUGUI interactionText;
+    public KeyCode interactionKey = KeyCode.E;
 
-    [Header("UI")]
-    [SerializeField] private GameObject interactionUI;
-    [SerializeField] private TextMeshProUGUI interactionText;
+    [Header("Interaction Settings")]
+    public float interactionRange = 3f;
+    public LayerMask interactableLayers = -1;
 
+    private Dictionary<object, string> currentInteractables = new Dictionary<object, string>();
     private Camera playerCamera;
-    private IInteractable currentInteractable;
 
     private void Start()
     {
@@ -32,154 +25,134 @@ public class InteractionSystem : MonoBehaviour
             playerCamera = Camera.main;
         }
 
-        if (interactionUI != null)
+        if (interactionPrompt != null)
         {
-            interactionUI.SetActive(false);
+            interactionPrompt.SetActive(false);
         }
     }
 
     private void Update()
     {
-        CheckForInteractable();
+        CheckForInteractables();
         HandleInteractionInput();
+        UpdateInteractionUI();
     }
 
-    private void CheckForInteractable()
+    private void CheckForInteractables()
     {
+        // Raycast from camera to check for interactables
         Ray ray = playerCamera.ScreenPointToRay(new Vector3(Screen.width / 2, Screen.height / 2, 0));
         RaycastHit hit;
 
-        IInteractable newInteractable = null;
-
-        if (Physics.Raycast(ray, out hit, interactionRange, interactionLayers))
+        if (Physics.Raycast(ray, out hit, interactionRange, interactableLayers))
         {
-            newInteractable = hit.collider.GetComponent<IInteractable>();
-        }
-
-        if (newInteractable != currentInteractable)
-        {
-            currentInteractable = newInteractable;
-            UpdateInteractionUI();
+            // Check for different types of interactables
+            CheckItemPickup(hit.collider);
+            CheckPlantedPlant(hit.collider);
         }
     }
 
-    private void UpdateInteractionUI()
+    private void CheckItemPickup(Collider collider)
     {
-        if (currentInteractable != null && currentInteractable.CanInteract())
+        ItemPickup pickup = collider.GetComponent<ItemPickup>();
+        if (pickup != null && pickup.item != null)
         {
-            if (interactionUI != null)
-            {
-                interactionUI.SetActive(true);
-                if (interactionText != null)
-                {
-                    interactionText.text = currentInteractable.GetInteractionPrompt();
-                }
-            }
+            SetInteractable(pickup, $"Pick up {pickup.item.itemName} ({pickup.quantity})");
         }
-        else
+    }
+
+    private void CheckPlantedPlant(Collider collider)
+    {
+        PlantedPlant plant = collider.GetComponent<PlantedPlant>();
+        if (plant != null && plant.CanHarvest())
         {
-            if (interactionUI != null)
-            {
-                interactionUI.SetActive(false);
-            }
+            SetInteractable(plant, $"Harvest {plant.plantData.plantName}");
         }
     }
 
     private void HandleInteractionInput()
     {
-        if (Input.GetKeyDown(KeyCode.E))
+        if (Input.GetKeyDown(interactionKey) && currentInteractables.Count > 0)
         {
-            if (currentInteractable != null && currentInteractable.CanInteract())
+            InteractWithClosest();
+        }
+    }
+
+    private void InteractWithClosest()
+    {
+        foreach (var interactable in currentInteractables.Keys)
+        {
+            if (interactable is ItemPickup pickup)
             {
-                currentInteractable.Interact();
+                pickup.TryPickup(gameObject);
+                break;
+            }
+            else if (interactable is PlantedPlant plant)
+            {
+                plant.Harvest();
+                break;
+            }
+            else if (interactable is MonoBehaviour mb && mb != null)
+            {
+                // Try to call Interact method if it exists
+                var interactMethod = mb.GetType().GetMethod("Interact");
+                if (interactMethod != null)
+                {
+                    interactMethod.Invoke(mb, new object[] { gameObject });
+                    break;
+                }
             }
         }
     }
 
-    private void OnDrawGizmos()
+    private void UpdateInteractionUI()
+    {
+        if (interactionPrompt == null) return;
+
+        bool hasInteractables = currentInteractables.Count > 0;
+        interactionPrompt.SetActive(hasInteractables);
+
+        if (hasInteractables && interactionText != null)
+        {
+            string prompt = "";
+            foreach (var interaction in currentInteractables.Values)
+            {
+                prompt = interaction; // Just show the first one for now
+                break;
+            }
+            interactionText.text = $"Press {interactionKey} to {prompt}";
+        }
+    }
+
+    public void SetInteractable(object interactable, string interactionPromptText)
+    {
+        if (!currentInteractables.ContainsKey(interactable))
+        {
+            currentInteractables[interactable] = interactionPromptText;
+        }
+    }
+
+    public void ClearInteractable(object interactable)
+    {
+        if (currentInteractables.ContainsKey(interactable))
+        {
+            currentInteractables.Remove(interactable);
+        }
+    }
+
+    public void ClearAllInteractables()
+    {
+        currentInteractables.Clear();
+    }
+
+    private void OnDrawGizmosSelected()
     {
         if (playerCamera != null)
         {
             Gizmos.color = Color.blue;
-            Vector3 forward = playerCamera.transform.forward;
-            Gizmos.DrawRay(playerCamera.transform.position, forward * interactionRange);
+            Vector3 rayOrigin = playerCamera.transform.position;
+            Vector3 rayDirection = playerCamera.transform.forward;
+            Gizmos.DrawRay(rayOrigin, rayDirection * interactionRange);
         }
-    }
-}
-
-
-public class PickupItem : MonoBehaviour, IInteractable
-{
-    [SerializeField] private Item item;
-    [SerializeField] private int quantity = 1;
-
-    public void SetItem(Item newItem, int newQuantity)
-    {
-        item = newItem;
-        quantity = newQuantity;
-    }
-
-    public string GetInteractionPrompt()
-    {
-        return $"Нажмите E чтобы подобрать {item.itemName} x{quantity}";
-    }
-
-    public void Interact()
-    {
-        if (InventoryManager.Instance != null)
-        {
-
-            if (InventoryManager.Instance.AddItemToHotbar(item, quantity))
-            {
-                Destroy(gameObject);
-                return;
-            }
-
-            if (InventoryManager.Instance.AddItem(item, quantity))
-            {
-                Destroy(gameObject);
-            }
-            else
-            {
-                Debug.Log("Инвентарь полон!");
-            }
-        }
-    }
-
-    public bool CanInteract()
-    {
-        return item != null && quantity > 0;
-    }
-}
-
-public class HarvestableePlant : MonoBehaviour, IInteractable
-{
-    private PlantedPlant plantedPlant;
-
-    private void Start()
-    {
-        plantedPlant = GetComponent<PlantedPlant>();
-    }
-
-    public string GetInteractionPrompt()
-    {
-        if (plantedPlant != null && plantedPlant.CanHarvest())
-        {
-            return $"Нажмите E чтобы собрать {plantedPlant.GetPlantData().plantName}";
-        }
-        return "";
-    }
-
-    public void Interact()
-    {
-        if (plantedPlant != null && plantedPlant.CanHarvest())
-        {
-            plantedPlant.Harvest();
-        }
-    }
-
-    public bool CanInteract()
-    {
-        return plantedPlant != null && plantedPlant.CanHarvest();
     }
 }

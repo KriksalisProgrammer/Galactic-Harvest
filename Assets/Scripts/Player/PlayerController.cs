@@ -1,5 +1,3 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 [RequireComponent(typeof(CharacterController))]
@@ -12,6 +10,7 @@ public class PlayerController : MonoBehaviour
 
     [Header("Camera")]
     public float mouseSensitivity = 2f;
+    public float maxLookAngle = 90f;
 
     private CharacterController controller;
     private float verticalRotation = 0f;
@@ -19,9 +18,11 @@ public class PlayerController : MonoBehaviour
     private float verticalVelocity = 0f;
     private bool cursorLocked = true;
 
+    // UI References
+    private InventoryUI inventoryUI;
     private bool inventoryOpen = false;
 
-    void Start()
+    private void Start()
     {
         controller = GetComponent<CharacterController>();
         playerCamera = GetComponentInChildren<Camera>();
@@ -31,18 +32,28 @@ public class PlayerController : MonoBehaviour
             Debug.LogError("PlayerController: Camera not found in children!");
         }
 
-        SetCursorState(true);
+        // Find UI components
+        inventoryUI = FindObjectOfType<InventoryUI>();
 
-        InventoryUI inventoryUI = FindObjectOfType<InventoryUI>();
+        // Subscribe to inventory events
         if (inventoryUI != null)
         {
-            
+            inventoryUI.OnInventoryToggled += OnInventoryToggled;
         }
+
+        SetCursorState(true);
+        InventoryUI inv = FindObjectOfType<InventoryUI>();
+        HotbarUI hotbar = FindObjectOfType<HotbarUI>();
+
+        Debug.Log($"InventoryUI found: {inv != null}");
+        Debug.Log($"Inventory slots parent: {inv?.inventorySlotsParent != null}");
+        Debug.Log($"HotbarUI found: {hotbar != null}");
+        Debug.Log($"Hotbar slots parent: {hotbar?.hotbarSlotsParent != null}");
     }
 
-    void Update()
+    private void Update()
     {
-        HandleCursorToggle();
+        HandleInput();
         CheckInventoryState();
 
         if (cursorLocked && !inventoryOpen)
@@ -53,44 +64,47 @@ public class PlayerController : MonoBehaviour
         HandleMovement();
     }
 
+    private void HandleInput()
+    {
+        // Handle ESC key for cursor toggle and closing inventory
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            if (inventoryOpen && inventoryUI != null)
+            {
+                inventoryUI.CloseInventory();
+            }
+            else
+            {
+                cursorLocked = !cursorLocked;
+                SetCursorState(cursorLocked);
+            }
+        }
+    }
+
     private void CheckInventoryState()
     {
-        InventoryUI inventoryUI = FindObjectOfType<InventoryUI>();
         if (inventoryUI != null)
         {
-            bool wasOpen = inventoryOpen;
-            if (Input.GetKeyDown(KeyCode.Tab))
+            bool isOpen = inventoryUI.IsInventoryOpen();
+            if (isOpen != inventoryOpen)
             {
-                inventoryOpen = !inventoryOpen;
+                inventoryOpen = isOpen;
                 SetCursorState(!inventoryOpen);
             }
         }
     }
 
-    private void HandleCursorToggle()
+    private void OnInventoryToggled(bool isOpen)
     {
-        if (Input.GetKeyDown(KeyCode.Escape))
-        {
-            if (inventoryOpen)
-            {
-
-                InventoryUI inventoryUI = FindObjectOfType<InventoryUI>();
-                if (inventoryUI != null)
-                {
-                    inventoryUI.ToggleInventory();
-                }
-                inventoryOpen = false;
-            }
-
-            cursorLocked = !cursorLocked;
-            SetCursorState(cursorLocked && !inventoryOpen);
-        }
+        inventoryOpen = isOpen;
+        SetCursorState(!isOpen);
     }
 
     private void SetCursorState(bool locked)
     {
         Cursor.lockState = locked ? CursorLockMode.Locked : CursorLockMode.None;
         Cursor.visible = !locked;
+        cursorLocked = locked;
     }
 
     private void HandleMouseLook()
@@ -99,7 +113,7 @@ public class PlayerController : MonoBehaviour
         float mouseY = Input.GetAxis("Mouse Y") * mouseSensitivity;
 
         verticalRotation -= mouseY;
-        verticalRotation = Mathf.Clamp(verticalRotation, -90f, 90f);
+        verticalRotation = Mathf.Clamp(verticalRotation, -maxLookAngle, maxLookAngle);
 
         if (playerCamera != null)
         {
@@ -111,7 +125,12 @@ public class PlayerController : MonoBehaviour
 
     private void HandleMovement()
     {
+        // Don't move when inventory is open
         if (inventoryOpen) return;
+
+        // Don't move when in planting mode
+        PlayerPlanting planting = GetComponent<PlayerPlanting>();
+        if (planting != null && planting.IsInPlantingMode()) return;
 
         float moveX = Input.GetAxis("Horizontal");
         float moveZ = Input.GetAxis("Vertical");
@@ -135,7 +154,7 @@ public class PlayerController : MonoBehaviour
             }
             else
             {
-                verticalVelocity = -0.5f;
+                verticalVelocity = -0.5f; // Small downward force to keep grounded
             }
         }
         else
@@ -152,5 +171,42 @@ public class PlayerController : MonoBehaviour
     public Vector3 GetPlayerRotation()
     {
         return transform.eulerAngles;
+    }
+
+    public void SetPlayerPosition(Vector3 position)
+    {
+        controller.enabled = false;
+        transform.position = position;
+        controller.enabled = true;
+    }
+
+    public void SetPlayerRotation(Vector3 rotation)
+    {
+        transform.eulerAngles = new Vector3(0, rotation.y, 0);
+        verticalRotation = rotation.x;
+
+        if (playerCamera != null)
+        {
+            playerCamera.transform.localRotation = Quaternion.Euler(verticalRotation, 0f, 0f);
+        }
+    }
+
+    public bool IsMovementDisabled()
+    {
+        return inventoryOpen ||
+               (GetComponent<PlayerPlanting>()?.IsInPlantingMode() ?? false);
+    }
+
+    public Camera GetPlayerCamera()
+    {
+        return playerCamera;
+    }
+
+    private void OnDestroy()
+    {
+        if (inventoryUI != null)
+        {
+            inventoryUI.OnInventoryToggled -= OnInventoryToggled;
+        }
     }
 }

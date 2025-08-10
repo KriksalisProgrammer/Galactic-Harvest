@@ -4,7 +4,7 @@ using UnityEngine;
 using System.IO;
 
 [System.Serializable]
-public class SlotSaveData : MonoBehaviour
+public class SlotSaveData
 {
     public string itemName;
     public int quantity;

@@ -1008,25 +1008,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 06518ac43ac26d24ca921b172e3846db, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  hotbarUI: {fileID: 1348083019}
-  hotbarManager: {fileID: 521385474}
-  slots:
-  - item: {fileID: 0}
-  - item: {fileID: 0}
-  - item: {fileID: 0}
-  - item: {fileID: 0}
-  - item: {fileID: 0}
-  - item: {fileID: 0}
-  - item: {fileID: 0}
-  - item: {fileID: 0}
-  testItems:
-  - {fileID: 11400000, guid: 6867429d60ce0ae43a485e7fb95e6347, type: 2}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
+  hotbarSize: 8
+  hotbarKeys: 3100000032000000330000003400000035000000360000003700000038000000
 --- !u!1 &418241385
 GameObject:
   m_ObjectHideFlags: 0
@@ -2965,8 +2948,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0}
   m_AnchorMax: {x: 0.5, y: 0}
-  m_AnchoredPosition: {x: 0, y: 80}
-  m_SizeDelta: {x: 580, y: 80}
+  m_AnchoredPosition: {x: 0, y: 100}
+  m_SizeDelta: {x: 640, y: 80}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1348083016
 MonoBehaviour:
@@ -3042,37 +3025,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 843f1dd7e3c8e25458a5a30b2115ae80, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  hotbarGrid: {fileID: 0}
+  hotbarSlotsParent: {fileID: 0}
   hotbarSlotPrefab: {fileID: 0}
-  slotIcons:
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  slotHighlights:
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  quantityTexts:
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  activeSlotColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
-  inactiveSlotColor: {r: 1, g: 1, b: 1, a: 1}
+  hotbarSize: 8
 --- !u!1 &1455480641
 GameObject:
   m_ObjectHideFlags: 0
@@ -3117,7 +3072,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2371d540e3d9d67458296f53deb3f257, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  autoSave: 1
+  saveFileName: GameSave.json
+  autoSaveEnabled: 1
   autoSaveInterval: 60
 --- !u!1 &1480013204
 GameObject:
@@ -3330,9 +3286,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   inventoryPanel: {fileID: 1721614870}
-  inventoryGrid: {fileID: 1259224182}
-  slotPrefab: {fileID: 6420654078024830915, guid: 3aca59cf4a7cb054a931d2f8535f2ca4,
-    type: 3}
+  inventorySlotsParent: {fileID: 0}
+  inventorySlotPrefab: {fileID: 0}
   closeButton: {fileID: 1309576955}
   inventorySize: 24
   toggleKey: 9
@@ -3862,9 +3817,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   inventoryPanel: {fileID: 1721614870}
-  inventoryGrid: {fileID: 1259224182}
-  slotPrefab: {fileID: 7447402455319233139, guid: f2557d125515f37478ba9c26c0103244,
-    type: 3}
+  inventorySlotsParent: {fileID: 0}
+  inventorySlotPrefab: {fileID: 0}
   closeButton: {fileID: 1309576955}
   inventorySize: 24
   toggleKey: 9

@@ -1,18 +1,18 @@
-using System.Collections;
 using System.Collections.Generic;
-using UnityEngine;
 using System.IO;
+using UnityEngine;
 
 public class SaveSystem : MonoBehaviour
 {
     public static SaveSystem Instance;
 
     [Header("Save Settings")]
-    [SerializeField] private bool autoSave = true;
-    [SerializeField] private float autoSaveInterval = 60f; // секунд
+    public string saveFileName = "GameSave.json";
+    public bool autoSaveEnabled = true;
+    public float autoSaveInterval = 60f; // seconds
 
-    private string saveFilePath;
-    private Coroutine autoSaveCoroutine;
+    private string savePath;
+    private float autoSaveTimer;
 
     private void Awake()
     {
@@ -21,12 +21,7 @@ public class SaveSystem : MonoBehaviour
             Instance = this;
             DontDestroyOnLoad(gameObject);
 
-            saveFilePath = Path.Combine(Application.persistentDataPath, "savegame.json");
-
-            if (autoSave)
-            {
-                autoSaveCoroutine = StartCoroutine(AutoSaveLoop());
-            }
+            savePath = Path.Combine(Application.persistentDataPath, saveFileName);
         }
         else
         {
@@ -34,14 +29,96 @@ public class SaveSystem : MonoBehaviour
         }
     }
 
+    private void Update()
+    {
+        if (autoSaveEnabled)
+        {
+            autoSaveTimer += Time.deltaTime;
+            if (autoSaveTimer >= autoSaveInterval)
+            {
+                AutoSave();
+                autoSaveTimer = 0f;
+            }
+        }
+    }
+
     public void SaveGame()
+    {
+        try
+        {
+            SaveData saveData = CreateSaveData();
+            string jsonData = JsonUtility.ToJson(saveData, true);
+            File.WriteAllText(savePath, jsonData);
+
+            Debug.Log($"Game saved successfully to: {savePath}");
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"Failed to save game: {e.Message}");
+        }
+    }
+
+    public bool LoadGame()
+    {
+        try
+        {
+            if (!File.Exists(savePath))
+            {
+                Debug.LogWarning("Save file not found. Starting new game.");
+                return false;
+            }
+
+            string jsonData = File.ReadAllText(savePath);
+            SaveData saveData = JsonUtility.FromJson<SaveData>(jsonData);
+
+            ApplySaveData(saveData);
+
+            Debug.Log("Game loaded successfully");
+            return true;
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"Failed to load game: {e.Message}");
+            return false;
+        }
+    }
+
+    public bool HasSaveFile()
+    {
+        return File.Exists(savePath);
+    }
+
+    public void DeleteSave()
+    {
+        try
+        {
+            if (File.Exists(savePath))
+            {
+                File.Delete(savePath);
+                Debug.Log("Save file deleted");
+            }
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"Failed to delete save file: {e.Message}");
+        }
+    }
+
+    private void AutoSave()
+    {
+        SaveGame();
+        Debug.Log("Auto-save completed");
+    }
+
+    private SaveData CreateSaveData()
     {
         SaveData saveData = new SaveData();
 
-        // Сохраняем инвентарь
+        // Save inventory data
         if (InventoryManager.Instance != null)
         {
-            for (int i = 0; i < 24; i++) // Размер инвентаря
+            // Save main inventory
+            for (int i = 0; i < 24; i++) // Assuming 24 inventory slots
             {
                 InventorySlot slot = InventoryManager.Instance.GetInventorySlot(i);
                 if (slot != null && !slot.IsEmpty())
@@ -50,12 +127,12 @@ public class SaveSystem : MonoBehaviour
                 }
                 else
                 {
-                    saveData.inventorySlots.Add(new SlotSaveData("", 0));
+                    saveData.inventorySlots.Add(new SlotSaveData());
                 }
             }
 
-            // Сохраняем хотбар
-            for (int i = 0; i < 8; i++) // Размер хотбара
+            // Save hotbar
+            for (int i = 0; i < 8; i++) // Assuming 8 hotbar slots
             {
                 InventorySlot slot = InventoryManager.Instance.GetHotbarSlot(i);
                 if (slot != null && !slot.IsEmpty())
@@ -64,170 +141,106 @@ public class SaveSystem : MonoBehaviour
                 }
                 else
                 {
-                    saveData.hotbarSlots.Add(new SlotSaveData("", 0));
+                    saveData.hotbarSlots.Add(new SlotSaveData());
                 }
             }
         }
 
-        // Сохраняем позицию игрока
-        PlayerController player = FindObjectOfType<PlayerController>();
-        if (player != null)
+        // Save player position and rotation
+        PlayerController playerController = FindObjectOfType<PlayerController>();
+        if (playerController != null)
         {
-            saveData.playerPosition = player.transform.position;
-            saveData.playerRotation = player.transform.eulerAngles;
+            saveData.playerPosition = playerController.GetPlayerPosition();
+            saveData.playerRotation = playerController.GetPlayerRotation();
         }
 
-        try
-        {
-            string json = JsonUtility.ToJson(saveData, true);
-            File.WriteAllText(saveFilePath, json);
-            Debug.Log("Игра сохранена: " + saveFilePath);
-        }
-        catch (System.Exception e)
-        {
-            Debug.LogError("Ошибка сохранения: " + e.Message);
-        }
+        return saveData;
     }
 
-    public void LoadGame()
+    private void ApplySaveData(SaveData saveData)
     {
-        if (!File.Exists(saveFilePath))
+        // Load inventory data
+        if (InventoryManager.Instance != null && saveData.inventorySlots != null)
         {
-            Debug.Log("Файл сохранения не найден");
-            return;
-        }
-
-        try
-        {
-            string json = File.ReadAllText(saveFilePath);
-            SaveData saveData = JsonUtility.FromJson<SaveData>(json);
-
-            if (saveData != null)
+            // Load main inventory
+            for (int i = 0; i < saveData.inventorySlots.Count && i < 24; i++)
             {
-                LoadInventoryData(saveData);
-                LoadPlayerData(saveData);
-                Debug.Log("Игра загружена");
-            }
-        }
-        catch (System.Exception e)
-        {
-            Debug.LogError("Ошибка загрузки: " + e.Message);
-        }
-    }
-
-    private void LoadInventoryData(SaveData saveData)
-    {
-        if (InventoryManager.Instance == null) return;
-
-        // Очищаем текущий инвентарь
-        for (int i = 0; i < saveData.inventorySlots.Count && i < 24; i++)
-        {
-            SlotSaveData slotData = saveData.inventorySlots[i];
-            if (!string.IsNullOrEmpty(slotData.itemName) && slotData.quantity > 0)
-            {
-                Item item = LoadItemByName(slotData.itemName);
-                if (item != null)
+                SlotSaveData slotData = saveData.inventorySlots[i];
+                if (!string.IsNullOrEmpty(slotData.itemName))
                 {
-                    InventorySlot slot = InventoryManager.Instance.GetInventorySlot(i);
-                    if (slot != null)
+                    Item item = LoadItemByName(slotData.itemName);
+                    if (item != null)
                     {
-                        slot.item = item;
-                        slot.quantity = slotData.quantity;
-                        InventoryManager.Instance.OnInventoryChanged?.Invoke(i, slot);
+                        InventoryManager.Instance.AddItem(item, slotData.quantity);
                     }
                 }
             }
+
+            // Load hotbar - need to implement direct slot setting
+            // This would require additional methods in InventoryManager
         }
 
-        // Загружаем хотбар
-        for (int i = 0; i < saveData.hotbarSlots.Count && i < 8; i++)
+        // Load player position
+        PlayerController playerController = FindObjectOfType<PlayerController>();
+        if (playerController != null)
         {
-            SlotSaveData slotData = saveData.hotbarSlots[i];
-            if (!string.IsNullOrEmpty(slotData.itemName) && slotData.quantity > 0)
-            {
-                Item item = LoadItemByName(slotData.itemName);
-                if (item != null)
-                {
-                    InventorySlot slot = InventoryManager.Instance.GetHotbarSlot(i);
-                    if (slot != null)
-                    {
-                        slot.item = item;
-                        slot.quantity = slotData.quantity;
-                        InventoryManager.Instance.OnHotbarChanged?.Invoke(i, slot);
-                    }
-                }
-            }
-        }
-    }
-
-    private void LoadPlayerData(SaveData saveData)
-    {
-        PlayerController player = FindObjectOfType<PlayerController>();
-        if (player != null)
-        {
-            // Отключаем CharacterController для телепортации
-            CharacterController controller = player.GetComponent<CharacterController>();
-            if (controller != null)
-            {
-                controller.enabled = false;
-                player.transform.position = saveData.playerPosition;
-                player.transform.eulerAngles = saveData.playerRotation;
-                controller.enabled = true;
-            }
+            playerController.transform.position = saveData.playerPosition;
+            playerController.transform.eulerAngles = saveData.playerRotation;
         }
     }
 
     private Item LoadItemByName(string itemName)
     {
-        // Пробуем найти в разных папках Resources
-        Item item = Resources.Load<Item>($"ScriptableObjects/Plant/{itemName}");
+        // Try to load from Resources folder
+        Item item = Resources.Load<Item>($"ScriptableObjects/{itemName}");
         if (item == null)
         {
-            item = Resources.Load<Item>($"ScriptableObjects/{itemName}");
+            // Try alternative paths
+            item = Resources.Load<Item>($"ScriptableObjects/Plant/{itemName}");
         }
+
         if (item == null)
         {
-            item = Resources.Load<Item>(itemName);
+            Debug.LogWarning($"Could not find item: {itemName}");
         }
 
         return item;
     }
 
-    private IEnumerator AutoSaveLoop()
+    // Called when application is paused (mobile) or loses focus
+    private void OnApplicationPause(bool pauseStatus)
     {
-        while (true)
+        if (pauseStatus && autoSaveEnabled)
         {
-            yield return new WaitForSeconds(autoSaveInterval);
             SaveGame();
         }
     }
 
-    public void DeleteSave()
+    private void OnApplicationFocus(bool hasFocus)
     {
-        if (File.Exists(saveFilePath))
+        if (!hasFocus && autoSaveEnabled)
         {
-            File.Delete(saveFilePath);
-            Debug.Log("Сохранение удалено");
+            SaveGame();
         }
     }
 
-    public bool HasSaveFile()
+    // Called when application quits
+    private void OnApplicationQuit()
     {
-        return File.Exists(saveFilePath);
+        if (autoSaveEnabled)
+        {
+            SaveGame();
+        }
     }
 
-    private void OnApplicationPause(bool pauseStatus)
-    {
-        if (pauseStatus) SaveGame();
-    }
-
-    private void OnApplicationFocus(bool hasFocus)
-    {
-        if (!hasFocus) SaveGame();
-    }
-
-    private void OnDestroy()
+    // Public methods for manual save/load
+    public void QuickSave()
     {
         SaveGame();
+    }
+
+    public void QuickLoad()
+    {
+        LoadGame();
     }
 }

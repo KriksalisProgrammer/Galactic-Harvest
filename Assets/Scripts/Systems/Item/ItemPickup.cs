@@ -1,120 +1,193 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 public class ItemPickup : MonoBehaviour
 {
-    [Header("Item Settings")]
-    [SerializeField] private Item item;
-    [SerializeField] private int quantity = 1;
-
-    [Header("Visual Settings")]
-    [SerializeField] private float rotationSpeed = 50f;
-    [SerializeField] private float bobSpeed = 2f;
-    [SerializeField] private float bobHeight = 0.2f;
+    [Header("Item Data")]
+    public Item item;
+    public int quantity = 1;
 
     [Header("Pickup Settings")]
-    [SerializeField] private float pickupRange = 2f;
-    [SerializeField] private LayerMask playerLayer = 1;
+    public float pickupRange = 2f;
+    public bool autoPickup = true;
+    public float autoPickupDelay = 1f;
 
-    private Vector3 startPosition;
-    private bool canPickup = true;
-    private PlayerController player;
+    [Header("Visual Effects")]
+    public GameObject pickupEffect;
+    public AudioClip pickupSound;
+
+    private float spawnTime;
+    private bool canBePickedUp = false;
+    private AudioSource audioSource;
 
     private void Start()
     {
-        startPosition = transform.position;
-        player = FindObjectOfType<PlayerController>();
+        spawnTime = Time.time;
+        audioSource = GetComponent<AudioSource>();
+
+        if (audioSource == null && pickupSound != null)
+        {
+            audioSource = gameObject.AddComponent<AudioSource>();
+        }
+
+        // Add some random rotation to make it look more natural
+        if (GetComponent<Rigidbody>() != null)
+        {
+            Vector3 randomTorque = new Vector3(
+                Random.Range(-10f, 10f),
+                Random.Range(-10f, 10f),
+                Random.Range(-10f, 10f)
+            );
+            GetComponent<Rigidbody>().AddTorque(randomTorque);
+        }
     }
 
     private void Update()
     {
-        if (!canPickup) return;
+        // Enable pickup after delay
+        if (!canBePickedUp && Time.time - spawnTime >= autoPickupDelay)
+        {
+            canBePickedUp = true;
+        }
 
-        transform.Rotate(Vector3.up, rotationSpeed * Time.deltaTime);
+        if (canBePickedUp && autoPickup)
+        {
+            CheckForPlayer();
+        }
+    }
 
-        float newY = startPosition.y + Mathf.Sin(Time.time * bobSpeed) * bobHeight;
-        transform.position = new Vector3(transform.position.x, newY, transform.position.z);
-
+    private void CheckForPlayer()
+    {
+        GameObject player = GameObject.FindGameObjectWithTag("Player");
         if (player != null)
         {
             float distance = Vector3.Distance(transform.position, player.transform.position);
             if (distance <= pickupRange)
             {
-                if (Input.GetKeyDown(KeyCode.E))
+                TryPickup(player);
+            }
+        }
+    }
+
+    public bool TryPickup(GameObject player)
+    {
+        if (!canBePickedUp || item == null) return false;
+
+        InventoryManager inventoryManager = InventoryManager.Instance;
+        if (inventoryManager == null) return false;
+
+        // Try to add item to inventory
+        bool success = inventoryManager.AddItem(item, quantity);
+
+        if (success)
+        {
+            OnPickedUp();
+            return true;
+        }
+        else
+        {
+            Debug.Log("Inventory is full!");
+            return false;
+        }
+    }
+
+    private void OnPickedUp()
+    {
+        // Play pickup sound
+        if (audioSource != null && pickupSound != null)
+        {
+            audioSource.PlayOneShot(pickupSound);
+        }
+
+        // Spawn pickup effect
+        if (pickupEffect != null)
+        {
+            Instantiate(pickupEffect, transform.position, transform.rotation);
+        }
+
+        // Destroy the pickup object
+        Destroy(gameObject, audioSource != null && pickupSound != null ? pickupSound.length : 0f);
+    }
+
+    public void SetItem(Item newItem, int newQuantity = 1)
+    {
+        item = newItem;
+        quantity = newQuantity;
+
+        // Update visual representation if needed
+        UpdateVisualRepresentation();
+    }
+
+    private void UpdateVisualRepresentation()
+    {
+        if (item != null && item.prefab != null)
+        {
+            // Clear existing visual
+            foreach (Transform child in transform)
+            {
+                if (child.name.Contains("Visual"))
                 {
-                    TryPickup();
+                    Destroy(child.gameObject);
+                }
+            }
+
+            // Create new visual
+            GameObject visual = Instantiate(item.prefab, transform);
+            visual.name = "Visual";
+            visual.transform.localPosition = Vector3.zero;
+            visual.transform.localRotation = Quaternion.identity;
+
+            // Remove any colliders from the visual (we want to use the pickup's collider)
+            Collider[] colliders = visual.GetComponentsInChildren<Collider>();
+            foreach (Collider col in colliders)
+            {
+                col.enabled = false;
+            }
+
+            // Disable any scripts that shouldn't run on pickup items
+            MonoBehaviour[] scripts = visual.GetComponentsInChildren<MonoBehaviour>();
+            foreach (MonoBehaviour script in scripts)
+            {
+                if (!(script is Renderer) && !(script is Transform))
+                {
+                    script.enabled = false;
                 }
             }
         }
     }
 
-    private void TryPickup()
+    // Manual pickup trigger (for interaction system)
+    private void OnTriggerEnter(Collider other)
     {
-        if (item == null || InventoryManager.Instance == null) return;
-
-        if (InventoryManager.Instance.AddItemToHotbar(item, quantity))
+        if (!autoPickup && other.CompareTag("Player"))
         {
-            PickupItem();
-            return;
-        }
-
-        if (InventoryManager.Instance.AddItem(item, quantity))
-        {
-            PickupItem();
-        }
-        else
-        {
-            Debug.Log("Инвентарь полон!");
+            InteractionSystem interaction = other.GetComponent<InteractionSystem>();
+            if (interaction != null)
+            {
+                interaction.SetInteractable(this, $"Pick up {item?.itemName ?? "Item"}");
+            }
         }
     }
 
-    private void PickupItem()
+    private void OnTriggerExit(Collider other)
     {
-        canPickup = false;
-        Debug.Log($"Подобран предмет: {item.itemName} x{quantity}");
-
-        StartCoroutine(PickupAnimation());
+        if (!autoPickup && other.CompareTag("Player"))
+        {
+            InteractionSystem interaction = other.GetComponent<InteractionSystem>();
+            if (interaction != null)
+            {
+                interaction.ClearInteractable(this);
+            }
+        }
     }
 
-    private IEnumerator PickupAnimation()
+    public void Interact(GameObject player)
     {
-        float duration = 0.3f;
-        Vector3 targetPos = player.transform.position + Vector3.up;
-        Vector3 startPos = transform.position;
-
-        for (float t = 0; t < duration; t += Time.deltaTime)
-        {
-            float progress = t / duration;
-            transform.position = Vector3.Lerp(startPos, targetPos, progress);
-            transform.localScale = Vector3.Lerp(Vector3.one, Vector3.zero, progress);
-            yield return null;
-        }
-
-        Destroy(gameObject);
-    }
-
-    public static GameObject CreateItemPickup(Item item, Vector3 position, int quantity = 1)
-    {
-        if (item.prefab == null) return null;
-
-        GameObject pickup = Instantiate(item.prefab, position, Quaternion.identity);
-        ItemPickup pickupComponent = pickup.GetComponent<ItemPickup>();
-
-        if (pickupComponent == null)
-        {
-            pickupComponent = pickup.AddComponent<ItemPickup>();
-        }
-
-        pickupComponent.item = item;
-        pickupComponent.quantity = quantity;
-
-        return pickup;
+        TryPickup(player);
     }
 
     private void OnDrawGizmosSelected()
     {
-        Gizmos.color = Color.yellow;
+        Gizmos.color = Color.green;
         Gizmos.DrawWireSphere(transform.position, pickupRange);
     }
 }

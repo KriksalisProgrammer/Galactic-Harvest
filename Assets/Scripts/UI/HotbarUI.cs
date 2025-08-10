@@ -1,214 +1,157 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
-using TMPro;
 
 public class HotbarUI : MonoBehaviour
 {
     [Header("UI References")]
-    [SerializeField] private Transform hotbarGrid;
-    [SerializeField] private GameObject hotbarSlotPrefab;
-    [SerializeField] private Image[] slotIcons; // Для обратной совместимости
-    [SerializeField] private GameObject[] slotHighlights; // Для обратной совместимости
-    [SerializeField] private TextMeshProUGUI[] quantityTexts; // Для обратной совместимости
+    public Transform hotbarSlotsParent;
+    public GameObject hotbarSlotPrefab;
 
-    [Header("Visual Settings")]
-    [SerializeField] private Color activeSlotColor = Color.yellow;
-    [SerializeField] private Color inactiveSlotColor = Color.white;
+    [Header("Settings")]
+    public int hotbarSize = 8;
 
-    private InventorySlotUI[] hotbarSlots;
-    private Image[] slotBackgrounds;
-    private int currentActiveSlot = 0;
+    private List<InventorySlotUI> hotbarSlots = new List<InventorySlotUI>();
+    private int selectedSlotIndex = 0;
+    private HotbarManager hotbarManager;
 
     private void Start()
     {
-        // Если есть готовые слоты в инспекторе, используем их
-        if (slotIcons != null && slotIcons.Length > 0)
-        {
-            InitializeExistingHotbar();
-        }
-        else
-        {
-            // Иначе создаем новые
-            InitializeNewHotbar();
-        }
-
-        // Подписываемся на события
-        HotbarManager hotbarManager = FindObjectOfType<HotbarManager>();
+        hotbarManager = FindObjectOfType<HotbarManager>();
         if (hotbarManager != null)
         {
-            hotbarManager.OnSlotChanged += UpdateActiveSlot;
+            hotbarManager.OnSlotChanged += OnActiveSlotChanged;
         }
 
+        InitializeHotbar();
+
+        // Subscribe to inventory changes
         if (InventoryManager.Instance != null)
         {
-            InventoryManager.Instance.OnHotbarChanged += UpdateSlot; // Для обратной совместимости
+            InventoryManager.Instance.OnHotbarChanged += UpdateSlot;
         }
     }
 
-    // Для работы с существующими слотами из инспектора
-    private void InitializeExistingHotbar()
+    private void InitializeHotbar()
     {
-        slotBackgrounds = new Image[slotIcons.Length];
-
-        for (int i = 0; i < slotIcons.Length; i++)
+        // Check if required references are assigned
+        if (hotbarSlotsParent == null)
         {
-            if (slotIcons[i] != null)
-            {
-                // Получаем фон слота
-                slotBackgrounds[i] = slotIcons[i].transform.parent?.GetComponent<Image>();
-            }
+            Debug.LogError("HotbarUI: hotbarSlotsParent is not assigned! Please assign it in the inspector.");
+            return;
         }
 
-        UpdateActiveSlot(0);
-    }
+        if (hotbarSlotPrefab == null)
+        {
+            Debug.LogError("HotbarUI: hotbarSlotPrefab is not assigned! Please assign it in the inspector.");
+            return;
+        }
 
-    // Для создания новых слотов программно
-    private void InitializeNewHotbar()
-    {
-        if (hotbarGrid == null || hotbarSlotPrefab == null) return;
+        // Clear existing slots
+        foreach (Transform child in hotbarSlotsParent)
+        {
+            if (Application.isPlaying)
+                Destroy(child.gameObject);
+            else
+                DestroyImmediate(child.gameObject);
+        }
+        hotbarSlots.Clear();
 
-        int hotbarSize = 8;
-        hotbarSlots = new InventorySlotUI[hotbarSize];
-        slotBackgrounds = new Image[hotbarSize];
-
+        // Create hotbar slots
         for (int i = 0; i < hotbarSize; i++)
         {
-            GameObject slotObj = Instantiate(hotbarSlotPrefab, hotbarGrid);
+            GameObject slotObj = Instantiate(hotbarSlotPrefab, hotbarSlotsParent);
             InventorySlotUI slotUI = slotObj.GetComponent<InventorySlotUI>();
 
             if (slotUI != null)
             {
-                slotUI.Initialize(i, true);
-                hotbarSlots[i] = slotUI;
-                slotBackgrounds[i] = slotObj.GetComponent<Image>();
+                slotUI.OnSlotClicked += OnSlotClicked;
+                slotUI.OnItemMoved += OnItemMoved;
+                hotbarSlots.Add(slotUI);
+
+                // Initialize with empty slot
+                InventorySlot emptySlot = new InventorySlot();
+                slotUI.SetSlot(emptySlot, i, true);
             }
-
-            // Добавляем номер клавиши
-            CreateSlotNumber(slotObj, i);
-        }
-
-        UpdateActiveSlot(0);
-    }
-
-    private void CreateSlotNumber(GameObject slotObj, int index)
-    {
-        GameObject numberObj = new GameObject("SlotNumber");
-        numberObj.transform.SetParent(slotObj.transform);
-
-        TextMeshProUGUI numberText = numberObj.AddComponent<TextMeshProUGUI>();
-        numberText.text = (index + 1).ToString();
-        numberText.fontSize = 12;
-        numberText.color = Color.white;
-        numberText.alignment = TextAlignmentOptions.Center; // Исправлено!
-
-        RectTransform numberRect = numberObj.GetComponent<RectTransform>();
-        numberRect.anchorMin = new Vector2(0, 1);
-        numberRect.anchorMax = new Vector2(1, 1);
-        numberRect.offsetMin = new Vector2(0, -15);
-        numberRect.offsetMax = new Vector2(0, 0);
-    }
-
-    // Для обратной совместимости с существующим кодом
-    public void UpdateSlot(int slotIndex, InventorySlot slot)
-    {
-        if (slotIndex < 0 || slotIndex >= 8) return;
-
-        // Если используем новую систему слотов
-        if (hotbarSlots != null && slotIndex < hotbarSlots.Length && hotbarSlots[slotIndex] != null)
-        {
-            hotbarSlots[slotIndex].UpdateSlot(slot);
-        }
-        // Если используем старую систему с массивами из инспектора
-        else if (slotIcons != null && slotIndex < slotIcons.Length)
-        {
-            UpdateSlotOldStyle(slotIndex, slot);
-        }
-    }
-
-    // Для обратной совместимости
-    public void SetSlotIcon(int slotIndex, Sprite icon)
-    {
-        if (slotIcons != null && slotIndex >= 0 && slotIndex < slotIcons.Length && slotIcons[slotIndex] != null)
-        {
-            slotIcons[slotIndex].sprite = icon;
-            slotIcons[slotIndex].enabled = icon != null;
-        }
-    }
-
-    // Для обратной совместимости
-    public void ClearSlot(int slotIndex)
-    {
-        SetSlotIcon(slotIndex, null);
-        if (quantityTexts != null && slotIndex < quantityTexts.Length && quantityTexts[slotIndex] != null)
-        {
-            quantityTexts[slotIndex].text = "";
-        }
-    }
-
-    private void UpdateSlotOldStyle(int slotIndex, InventorySlot slot)
-    {
-        if (slot != null && !slot.IsEmpty())
-        {
-            slotIcons[slotIndex].sprite = slot.item.icon;
-            slotIcons[slotIndex].enabled = true;
-
-            if (quantityTexts != null && slotIndex < quantityTexts.Length && quantityTexts[slotIndex] != null)
+            else
             {
-                quantityTexts[slotIndex].text = slot.quantity > 1 ? slot.quantity.ToString() : "";
+                Debug.LogError("HotbarUI: InventorySlotUI component not found on hotbar slot prefab!");
             }
         }
-        else
-        {
-            slotIcons[slotIndex].sprite = null;
-            slotIcons[slotIndex].enabled = false;
 
-            if (quantityTexts != null && slotIndex < quantityTexts.Length && quantityTexts[slotIndex] != null)
-            {
-                quantityTexts[slotIndex].text = "";
-            }
+        // Set first slot as selected
+        if (hotbarSlots.Count > 0)
+        {
+            hotbarSlots[0].SetSelected(true);
         }
     }
 
-    private void UpdateActiveSlot(int activeSlotIndex)
+    public void UpdateSlot(int index, InventorySlot slot)
     {
-        currentActiveSlot = activeSlotIndex;
-
-        // Обновляем подсветку для новой системы
-        if (slotBackgrounds != null)
+        if (index >= 0 && index < hotbarSlots.Count)
         {
-            for (int i = 0; i < slotBackgrounds.Length; i++)
-            {
-                if (slotBackgrounds[i] != null)
-                {
-                    slotBackgrounds[i].color = (i == activeSlotIndex) ? activeSlotColor : inactiveSlotColor;
-                }
-            }
+            hotbarSlots[index].SetSlot(slot, index, true);
+        }
+    }
+
+    private void OnActiveSlotChanged(int newIndex)
+    {
+        // Deselect old slot
+        if (selectedSlotIndex >= 0 && selectedSlotIndex < hotbarSlots.Count)
+        {
+            hotbarSlots[selectedSlotIndex].SetSelected(false);
         }
 
-        // Обновляем подсветку для старой системы
-        if (slotHighlights != null)
+        // Select new slot
+        selectedSlotIndex = newIndex;
+        if (selectedSlotIndex >= 0 && selectedSlotIndex < hotbarSlots.Count)
         {
-            for (int i = 0; i < slotHighlights.Length; i++)
-            {
-                if (slotHighlights[i] != null)
-                {
-                    slotHighlights[i].SetActive(i == activeSlotIndex);
-                }
-            }
+            hotbarSlots[selectedSlotIndex].SetSelected(true);
+        }
+    }
+
+    private void OnSlotClicked(int slotIndex, bool isHotbarSlot)
+    {
+        if (isHotbarSlot && hotbarManager != null)
+        {
+            hotbarManager.SetActiveSlot(slotIndex);
+        }
+    }
+
+    private void OnItemMoved(int fromIndex, int toIndex, bool fromHotbar, bool toHotbar)
+    {
+        if (InventoryManager.Instance != null)
+        {
+            InventoryManager.Instance.MoveItem(fromIndex, toIndex, fromHotbar, toHotbar);
         }
     }
 
     private void OnDestroy()
     {
-        HotbarManager hotbarManager = FindObjectOfType<HotbarManager>();
         if (hotbarManager != null)
         {
-            hotbarManager.OnSlotChanged -= UpdateActiveSlot;
+            hotbarManager.OnSlotChanged -= OnActiveSlotChanged;
         }
 
         if (InventoryManager.Instance != null)
         {
             InventoryManager.Instance.OnHotbarChanged -= UpdateSlot;
+        }
+    }
+
+    // Public method to refresh all slots (useful for initialization)
+    public void RefreshAllSlots()
+    {
+        if (InventoryManager.Instance != null)
+        {
+            for (int i = 0; i < hotbarSize; i++)
+            {
+                InventorySlot slot = InventoryManager.Instance.GetHotbarSlot(i);
+                if (slot != null)
+                {
+                    UpdateSlot(i, slot);
+                }
+            }
         }
     }
 }

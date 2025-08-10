@@ -9,7 +9,7 @@ public class ItemPickup : MonoBehaviour
     [Header("Pickup Settings")]
     public float pickupRange = 2f;
     public bool autoPickup = true;
-    public float autoPickupDelay = 1f;
+    public float autoPickupDelay = 0.5f;
 
     [Header("Visual Effects")]
     public GameObject pickupEffect;
@@ -18,6 +18,7 @@ public class ItemPickup : MonoBehaviour
     private float spawnTime;
     private bool canBePickedUp = false;
     private AudioSource audioSource;
+    private bool isBeingPickedUp = false;
 
     private void Start()
     {
@@ -29,16 +30,24 @@ public class ItemPickup : MonoBehaviour
             audioSource = gameObject.AddComponent<AudioSource>();
         }
 
-        // Add some random rotation to make it look more natural
-        if (GetComponent<Rigidbody>() != null)
+        // ИСПРАВЛЕНО: Убираем лишнее вращение - предметы должны лежать спокойно
+        Rigidbody rb = GetComponent<Rigidbody>();
+        if (rb != null)
         {
-            Vector3 randomTorque = new Vector3(
-                Random.Range(-10f, 10f),
-                Random.Range(-10f, 10f),
-                Random.Range(-10f, 10f)
-            );
-            GetComponent<Rigidbody>().AddTorque(randomTorque);
+            rb.drag = 3f;
+            rb.angularDrag = 5f;
         }
+
+        // ИСПРАВЛЕНО: Добавляем коллайдер если его нет
+        if (GetComponent<Collider>() == null)
+        {
+            SphereCollider col = gameObject.AddComponent<SphereCollider>();
+            col.radius = 0.5f;
+            col.isTrigger = true;
+        }
+
+        // ИСПРАВЛЕНО: Убираем визуальное представление предмета если не задано
+        UpdateVisualRepresentation();
     }
 
     private void Update()
@@ -49,7 +58,7 @@ public class ItemPickup : MonoBehaviour
             canBePickedUp = true;
         }
 
-        if (canBePickedUp && autoPickup)
+        if (canBePickedUp && autoPickup && !isBeingPickedUp)
         {
             CheckForPlayer();
         }
@@ -70,10 +79,16 @@ public class ItemPickup : MonoBehaviour
 
     public bool TryPickup(GameObject player)
     {
-        if (!canBePickedUp || item == null) return false;
+        if (!canBePickedUp || item == null || isBeingPickedUp) return false;
+
+        isBeingPickedUp = true;
 
         InventoryManager inventoryManager = InventoryManager.Instance;
-        if (inventoryManager == null) return false;
+        if (inventoryManager == null)
+        {
+            isBeingPickedUp = false;
+            return false;
+        }
 
         // Try to add item to inventory
         bool success = inventoryManager.AddItem(item, quantity);
@@ -86,6 +101,7 @@ public class ItemPickup : MonoBehaviour
         else
         {
             Debug.Log("Inventory is full!");
+            isBeingPickedUp = false;
             return false;
         }
     }
@@ -104,8 +120,11 @@ public class ItemPickup : MonoBehaviour
             Instantiate(pickupEffect, transform.position, transform.rotation);
         }
 
+        Debug.Log($"Picked up {quantity} {item.itemName}");
+
         // Destroy the pickup object
-        Destroy(gameObject, audioSource != null && pickupSound != null ? pickupSound.length : 0f);
+        float destroyDelay = audioSource != null && pickupSound != null ? pickupSound.length : 0f;
+        Destroy(gameObject, destroyDelay);
     }
 
     public void SetItem(Item newItem, int newQuantity = 1)
@@ -126,7 +145,10 @@ public class ItemPickup : MonoBehaviour
             {
                 if (child.name.Contains("Visual"))
                 {
-                    Destroy(child.gameObject);
+                    if (Application.isPlaying)
+                        Destroy(child.gameObject);
+                    else
+                        DestroyImmediate(child.gameObject);
                 }
             }
 
@@ -135,6 +157,7 @@ public class ItemPickup : MonoBehaviour
             visual.name = "Visual";
             visual.transform.localPosition = Vector3.zero;
             visual.transform.localRotation = Quaternion.identity;
+            visual.transform.localScale = Vector3.one * 0.8f; // Немного меньше оригинала
 
             // Remove any colliders from the visual (we want to use the pickup's collider)
             Collider[] colliders = visual.GetComponentsInChildren<Collider>();
@@ -147,15 +170,37 @@ public class ItemPickup : MonoBehaviour
             MonoBehaviour[] scripts = visual.GetComponentsInChildren<MonoBehaviour>();
             foreach (MonoBehaviour script in scripts)
             {
-                if (!(script is Renderer) && !(script is Transform))
+                if (!(script is Renderer) && !(script is Transform) && !(script is MeshFilter))
                 {
                     script.enabled = false;
                 }
             }
         }
+        else if (item != null)
+        {
+            // ИСПРАВЛЕНО: Создаем простой куб если нет префаба
+            GameObject simpleCube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            simpleCube.transform.SetParent(transform);
+            simpleCube.transform.localPosition = Vector3.zero;
+            simpleCube.transform.localRotation = Quaternion.identity;
+            simpleCube.transform.localScale = Vector3.one * 0.5f;
+            simpleCube.name = "SimpleVisual";
+
+            // Убираем коллайдер от куба
+            Collider cubeCol = simpleCube.GetComponent<Collider>();
+            if (cubeCol != null) Destroy(cubeCol);
+
+            // Меняем цвет материала
+            Renderer cubeRenderer = simpleCube.GetComponent<Renderer>();
+            if (cubeRenderer != null)
+            {
+                cubeRenderer.material = new Material(Shader.Find("Standard"));
+                cubeRenderer.material.color = new Color(Random.value, Random.value, Random.value, 1f);
+            }
+        }
     }
 
-    // Manual pickup trigger (for interaction system)
+    // Manual pickup trigger (for interaction system) - НЕ ИСПОЛЬЗУЕТСЯ если autoPickup = true
     private void OnTriggerEnter(Collider other)
     {
         if (!autoPickup && other.CompareTag("Player"))

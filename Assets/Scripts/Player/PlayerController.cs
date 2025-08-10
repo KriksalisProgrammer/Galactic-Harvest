@@ -42,13 +42,10 @@ public class PlayerController : MonoBehaviour
         }
 
         SetCursorState(true);
-        InventoryUI inv = FindObjectOfType<InventoryUI>();
-        HotbarUI hotbar = FindObjectOfType<HotbarUI>();
 
-        Debug.Log($"InventoryUI found: {inv != null}");
-        Debug.Log($"Inventory slots parent: {inv?.inventorySlotsParent != null}");
-        Debug.Log($"HotbarUI found: {hotbar != null}");
-        Debug.Log($"Hotbar slots parent: {hotbar?.hotbarSlotsParent != null}");
+        // ИСПРАВЛЕНО: Убрал лишние дебаг сообщения
+        if (inventoryUI == null) Debug.LogWarning("InventoryUI not found!");
+        if (FindObjectOfType<HotbarUI>() == null) Debug.LogWarning("HotbarUI not found!");
     }
 
     private void Update()
@@ -75,8 +72,17 @@ public class PlayerController : MonoBehaviour
             }
             else
             {
-                cursorLocked = !cursorLocked;
-                SetCursorState(cursorLocked);
+                // ИСПРАВЛЕНО: Также выходим из режима посадки при ESC
+                PlayerPlanting planting = GetComponent<PlayerPlanting>();
+                if (planting != null && planting.IsInPlantingMode())
+                {
+                    planting.ForceExitPlantingMode();
+                }
+                else
+                {
+                    cursorLocked = !cursorLocked;
+                    SetCursorState(cursorLocked);
+                }
             }
         }
     }
@@ -98,6 +104,16 @@ public class PlayerController : MonoBehaviour
     {
         inventoryOpen = isOpen;
         SetCursorState(!isOpen);
+
+        // ИСПРАВЛЕНО: Принудительно выходим из режима посадки при открытии инвентаря
+        if (isOpen)
+        {
+            PlayerPlanting planting = GetComponent<PlayerPlanting>();
+            if (planting != null && planting.IsInPlantingMode())
+            {
+                planting.ForceExitPlantingMode();
+            }
+        }
     }
 
     private void SetCursorState(bool locked)
@@ -128,9 +144,11 @@ public class PlayerController : MonoBehaviour
         // Don't move when inventory is open
         if (inventoryOpen) return;
 
-        // Don't move when in planting mode
+        // ИСПРАВЛЕНО: Можем двигаться в режиме посадки, но медленнее
         PlayerPlanting planting = GetComponent<PlayerPlanting>();
-        if (planting != null && planting.IsInPlantingMode()) return;
+        bool inPlantingMode = planting != null && planting.IsInPlantingMode();
+
+        float currentMoveSpeed = inPlantingMode ? moveSpeed * 0.5f : moveSpeed;
 
         float moveX = Input.GetAxis("Horizontal");
         float moveZ = Input.GetAxis("Vertical");
@@ -141,7 +159,7 @@ public class PlayerController : MonoBehaviour
         HandleJumping();
 
         move.y = verticalVelocity;
-        controller.Move(move * moveSpeed * Time.deltaTime);
+        controller.Move(move * currentMoveSpeed * Time.deltaTime);
     }
 
     private void HandleJumping()
@@ -193,13 +211,19 @@ public class PlayerController : MonoBehaviour
 
     public bool IsMovementDisabled()
     {
-        return inventoryOpen ||
-               (GetComponent<PlayerPlanting>()?.IsInPlantingMode() ?? false);
+        return inventoryOpen;
     }
 
     public Camera GetPlayerCamera()
     {
         return playerCamera;
+    }
+
+    // ИСПРАВЛЕНО: Метод для проверки может ли игрок взаимодействовать
+    public bool CanInteract()
+    {
+        PlayerPlanting planting = GetComponent<PlayerPlanting>();
+        return !inventoryOpen && (planting == null || !planting.IsInPlantingMode());
     }
 
     private void OnDestroy()

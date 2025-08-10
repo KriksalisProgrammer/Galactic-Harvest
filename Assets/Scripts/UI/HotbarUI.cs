@@ -13,17 +13,19 @@ public class HotbarUI : MonoBehaviour
 
     private List<InventorySlotUI> hotbarSlots = new List<InventorySlotUI>();
     private int selectedSlotIndex = 0;
-    private HotbarManager hotbarManager;
+    private HotbarController hotbarController;
 
     private void Start()
     {
-        hotbarManager = FindObjectOfType<HotbarManager>();
-        if (hotbarManager != null)
-        {
-            hotbarManager.OnSlotChanged += OnActiveSlotChanged;
-        }
+        hotbarController = FindObjectOfType<HotbarController>();
 
         InitializeHotbar();
+
+        // ИСПРАВЛЕНО: Подписываемся на события HotbarController
+        if (hotbarController != null)
+        {
+            hotbarController.OnActiveSlotChanged += OnActiveSlotChanged;
+        }
 
         // Subscribe to inventory changes
         if (InventoryManager.Instance != null)
@@ -80,10 +82,7 @@ public class HotbarUI : MonoBehaviour
         }
 
         // Set first slot as selected
-        if (hotbarSlots.Count > 0)
-        {
-            hotbarSlots[0].SetSelected(true);
-        }
+        SetSelectedSlot(0);
     }
 
     public void UpdateSlot(int index, InventorySlot slot)
@@ -96,6 +95,14 @@ public class HotbarUI : MonoBehaviour
 
     private void OnActiveSlotChanged(int newIndex)
     {
+        SetSelectedSlot(newIndex);
+    }
+
+    // ИСПРАВЛЕНО: Отдельный метод для установки выбранного слота
+    private void SetSelectedSlot(int newIndex)
+    {
+        if (newIndex < 0 || newIndex >= hotbarSlots.Count) return;
+
         // Deselect old slot
         if (selectedSlotIndex >= 0 && selectedSlotIndex < hotbarSlots.Count)
         {
@@ -104,19 +111,16 @@ public class HotbarUI : MonoBehaviour
 
         // Select new slot
         selectedSlotIndex = newIndex;
-        if (selectedSlotIndex >= 0 && selectedSlotIndex < hotbarSlots.Count)
-        {
-            hotbarSlots[selectedSlotIndex].SetSelected(true);
-        }
+        hotbarSlots[selectedSlotIndex].SetSelected(true);
 
-        Debug.Log($"Active hotbar slot changed to: {newIndex}");
+        Debug.Log($"HotbarUI: Active slot changed to: {newIndex}");
     }
 
     private void OnSlotClicked(int slotIndex, bool isHotbarSlot)
     {
-        if (isHotbarSlot && hotbarManager != null)
+        if (isHotbarSlot && hotbarController != null)
         {
-            hotbarManager.SetActiveSlot(slotIndex);
+            hotbarController.SetActiveSlot(slotIndex);
         }
     }
 
@@ -124,15 +128,16 @@ public class HotbarUI : MonoBehaviour
     {
         if (InventoryManager.Instance != null)
         {
+            Debug.Log($"HotbarUI: Moving item from {fromIndex} ({(fromHotbar ? "hotbar" : "inventory")}) to {toIndex} ({(toHotbar ? "hotbar" : "inventory")})");
             InventoryManager.Instance.MoveItem(fromIndex, toIndex, fromHotbar, toHotbar);
         }
     }
 
     private void OnDestroy()
     {
-        if (hotbarManager != null)
+        if (hotbarController != null)
         {
-            hotbarManager.OnSlotChanged -= OnActiveSlotChanged;
+            hotbarController.OnActiveSlotChanged -= OnActiveSlotChanged;
         }
 
         if (InventoryManager.Instance != null)
@@ -155,5 +160,11 @@ public class HotbarUI : MonoBehaviour
                 }
             }
         }
+    }
+
+    // ИСПРАВЛЕНО: Метод для получения текущего выбранного слота
+    public int GetSelectedSlotIndex()
+    {
+        return selectedSlotIndex;
     }
 }

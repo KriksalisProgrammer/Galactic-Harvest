@@ -33,6 +33,18 @@ public class InteractionSystem : MonoBehaviour
 
     private void Update()
     {
+        // ИСПРАВЛЕНО: Не проверяем взаимодействия если в режиме посадки или открыт инвентарь
+        PlayerPlanting planting = GetComponent<PlayerPlanting>();
+        InventoryUI inventoryUI = FindObjectOfType<InventoryUI>();
+
+        if ((planting != null && planting.IsInPlantingMode()) ||
+            (inventoryUI != null && inventoryUI.IsInventoryOpen()))
+        {
+            currentInteractables.Clear();
+            UpdateInteractionUI();
+            return;
+        }
+
         CheckForInteractables();
         HandleInteractionInput();
         UpdateInteractionUI();
@@ -47,7 +59,7 @@ public class InteractionSystem : MonoBehaviour
         Ray ray = playerCamera.ScreenPointToRay(new Vector3(Screen.width / 2, Screen.height / 2, 0));
         RaycastHit hit;
 
-        if (Physics.Raycast(ray, out hit, interactionRange, interactableLayers))
+        if (Physics.Raycast(ray, out hit, interactionRange))
         {
             // Check for different types of interactables
             CheckItemPickup(hit.collider);
@@ -67,9 +79,19 @@ public class InteractionSystem : MonoBehaviour
     private void CheckPlantedPlant(Collider collider)
     {
         PlantedPlant plant = collider.GetComponent<PlantedPlant>();
-        if (plant != null && plant.CanHarvest())
+        if (plant != null)
         {
-            SetInteractable(plant, $"Harvest {plant.plantData.plantName}");
+            if (plant.CanHarvest())
+            {
+                SetInteractable(plant, $"Harvest {plant.plantData.plantName}");
+            }
+            else
+            {
+                // ИСПРАВЛЕНО: Показываем информацию о росте
+                float progress = plant.GetGrowthProgress();
+                string stageName = plant.GetCurrentStageName();
+                SetInteractable(plant, $"{plant.plantData.plantName} - {stageName} ({progress * 100:F0}%)");
+            }
         }
     }
 
@@ -92,7 +114,15 @@ public class InteractionSystem : MonoBehaviour
             }
             else if (interactable is PlantedPlant plant)
             {
-                plant.Harvest();
+                if (plant.CanHarvest())
+                {
+                    plant.Harvest();
+                }
+                else
+                {
+                    // ИСПРАВЛЕНО: Показываем информацию о росте при клике
+                    Debug.Log($"{plant.plantData.plantName} - {plant.GetCurrentStageName()} - {plant.GetGrowthProgress() * 100:F1}% grown");
+                }
                 break;
             }
             else if (interactable is MonoBehaviour mb && mb != null)
@@ -123,7 +153,27 @@ public class InteractionSystem : MonoBehaviour
                 prompt = interaction; // Just show the first one for now
                 break;
             }
-            interactionText.text = $"Press {interactionKey} to {prompt}";
+
+            // ИСПРАВЛЕНО: Разный текст для разных типов взаимодействий
+            foreach (var interactable in currentInteractables.Keys)
+            {
+                if (interactable is PlantedPlant plant)
+                {
+                    if (plant.CanHarvest())
+                    {
+                        interactionText.text = $"Press {interactionKey} to {prompt}";
+                    }
+                    else
+                    {
+                        interactionText.text = prompt; // Только информация, без кнопки
+                    }
+                }
+                else
+                {
+                    interactionText.text = $"Press {interactionKey} to {prompt}";
+                }
+                break;
+            }
         }
     }
 

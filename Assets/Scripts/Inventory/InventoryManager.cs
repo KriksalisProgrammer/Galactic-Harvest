@@ -266,6 +266,7 @@ public class InventoryManager : MonoBehaviour
         // Add tool functionality here
     }
 
+    // ИСПРАВЛЕНО: Улучшенная система перемещения предметов
     public void MoveItem(int fromIndex, int toIndex, bool isFromHotbar = false, bool isToHotbar = false)
     {
         List<InventorySlot> fromList = isFromHotbar ? hotbar : inventory;
@@ -277,15 +278,33 @@ public class InventoryManager : MonoBehaviour
         InventorySlot fromSlot = fromList[fromIndex];
         InventorySlot toSlot = toList[toIndex];
 
-        // Swap items
-        Item tempItem = fromSlot.item;
-        int tempQuantity = fromSlot.quantity;
+        // Если слоты одинаковые, ничего не делаем
+        if (fromIndex == toIndex && isFromHotbar == isToHotbar) return;
 
-        fromSlot.item = toSlot.item;
-        fromSlot.quantity = toSlot.quantity;
+        // Если в целевом слоте есть предмет того же типа и он может стакаться
+        if (!toSlot.IsEmpty() && fromSlot.item == toSlot.item && toSlot.item.isStackable)
+        {
+            int spaceAvailable = toSlot.item.maxStackSize - toSlot.quantity;
+            int amountToMove = Mathf.Min(fromSlot.quantity, spaceAvailable);
 
-        toSlot.item = tempItem;
-        toSlot.quantity = tempQuantity;
+            if (amountToMove > 0)
+            {
+                toSlot.quantity += amountToMove;
+                fromSlot.RemoveItem(amountToMove);
+            }
+        }
+        else
+        {
+            // Полная замена - меняем местами
+            Item tempItem = fromSlot.item;
+            int tempQuantity = fromSlot.quantity;
+
+            fromSlot.item = toSlot.item;
+            fromSlot.quantity = toSlot.quantity;
+
+            toSlot.item = tempItem;
+            toSlot.quantity = tempQuantity;
+        }
 
         // Notify UI of changes
         if (isFromHotbar)
@@ -378,6 +397,27 @@ public class InventoryManager : MonoBehaviour
     {
         if (index < 0 || index >= hotbar.Count) return null;
         return hotbar[index];
+    }
+
+    // ИСПРАВЛЕНО: Добавлен метод для прямой установки слота
+    public void SetHotbarSlot(int index, Item item, int quantity)
+    {
+        if (index < 0 || index >= hotbar.Count) return;
+
+        hotbar[index].item = item;
+        hotbar[index].quantity = quantity;
+        OnHotbarChanged?.Invoke(index, hotbar[index]);
+        SaveInventory();
+    }
+
+    public void SetInventorySlot(int index, Item item, int quantity)
+    {
+        if (index < 0 || index >= inventory.Count) return;
+
+        inventory[index].item = item;
+        inventory[index].quantity = quantity;
+        OnInventoryChanged?.Invoke(index, inventory[index]);
+        SaveInventory();
     }
 
     private void SaveInventory()
@@ -473,10 +513,15 @@ public class InventoryManager : MonoBehaviour
         }
         if (item == null)
         {
+            item = Resources.Load<Item>($"Items/{itemName}");
+        }
+        if (item == null)
+        {
             Debug.LogWarning($"Could not find item: {itemName}");
         }
         return item;
     }
+
     public void UseActiveHotbarItem()
     {
         HotbarController hotbarController = FindObjectOfType<HotbarController>();

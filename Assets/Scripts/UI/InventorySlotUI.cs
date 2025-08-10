@@ -3,7 +3,7 @@ using UnityEngine.UI;
 using UnityEngine.EventSystems;
 using TMPro;
 
-public class InventorySlotUI : MonoBehaviour, IPointerDownHandler, IDragHandler, IEndDragHandler, IDropHandler
+public class InventorySlotUI : MonoBehaviour, IPointerDownHandler, IDragHandler, IEndDragHandler, IDropHandler, IBeginDragHandler
 {
     [Header("UI References")]
     public Image itemIcon;
@@ -21,6 +21,8 @@ public class InventorySlotUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
     private bool isHotbarSlot;
     private Canvas canvas;
     private GameObject draggedItem;
+    private bool isDragging = false;
+    private Color originalColor;
 
     public System.Action<int, bool> OnSlotClicked;
     public System.Action<int, int, bool, bool> OnItemMoved; // from, to, fromHotbar, toHotbar
@@ -28,6 +30,7 @@ public class InventorySlotUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
     private void Awake()
     {
         canvas = GetComponentInParent<Canvas>();
+        originalColor = normalColor;
     }
 
     public void SetSlot(InventorySlot newSlot, int index, bool isHotbar = false)
@@ -77,14 +80,18 @@ public class InventorySlotUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
 
     public void SetSelected(bool selected)
     {
-        slotBackground.color = selected ? selectedColor : normalColor;
+        if (slotBackground != null)
+        {
+            slotBackground.color = selected ? selectedColor : normalColor;
+            originalColor = slotBackground.color;
+        }
     }
 
     public void SetHighlighted(bool highlighted)
     {
-        if (slotBackground.color != selectedColor)
+        if (slotBackground != null && slotBackground.color != selectedColor)
         {
-            slotBackground.color = highlighted ? highlightColor : normalColor;
+            slotBackground.color = highlighted ? highlightColor : originalColor;
         }
     }
 
@@ -96,35 +103,40 @@ public class InventorySlotUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
         if (slotBackground != null)
         {
             SetHighlighted(true);
-            StartCoroutine(ResetHighlightAfterDelay(0.1f));
         }
     }
 
-    private System.Collections.IEnumerator ResetHighlightAfterDelay(float delay)
+    public void OnBeginDrag(PointerEventData eventData)
     {
-        yield return new WaitForSeconds(delay);
-        SetHighlighted(false);
+        if (slot == null || slot.IsEmpty()) return;
+
+        isDragging = true;
+        CreateDraggedItem();
     }
 
     public void OnDrag(PointerEventData eventData)
     {
-        if (slot == null || slot.IsEmpty()) return;
+        if (!isDragging || draggedItem == null) return;
 
-        if (draggedItem == null)
-        {
-            CreateDraggedItem();
-        }
-
-        draggedItem.transform.position = eventData.position;
+        // ИСПРАВЛЕНО: Правильное позиционирование перетаскиваемого предмета
+        RectTransform canvasRect = canvas.GetComponent<RectTransform>();
+        Vector2 localPoint;
+        RectTransformUtility.ScreenPointToLocalPointInRectangle(canvasRect, eventData.position, eventData.pressEventCamera, out localPoint);
+        draggedItem.transform.localPosition = localPoint;
     }
 
     public void OnEndDrag(PointerEventData eventData)
     {
+        isDragging = false;
+
         if (draggedItem != null)
         {
             Destroy(draggedItem);
             draggedItem = null;
         }
+
+        // Сброс подсветки
+        SetHighlighted(false);
     }
 
     public void OnDrop(PointerEventData eventData)
@@ -132,13 +144,17 @@ public class InventorySlotUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
         InventorySlotUI draggedSlot = eventData.pointerDrag?.GetComponent<InventorySlotUI>();
         if (draggedSlot != null && draggedSlot != this)
         {
+            Debug.Log($"Moving item from slot {draggedSlot.slotIndex} to slot {slotIndex}");
             OnItemMoved?.Invoke(draggedSlot.slotIndex, slotIndex, draggedSlot.isHotbarSlot, isHotbarSlot);
         }
+
+        // Сброс подсветки
+        SetHighlighted(false);
     }
 
     private void CreateDraggedItem()
     {
-        if (slot == null || slot.IsEmpty()) return;
+        if (slot == null || slot.IsEmpty() || canvas == null) return;
 
         draggedItem = new GameObject("DraggedItem");
         draggedItem.transform.SetParent(canvas.transform, false);
@@ -151,6 +167,36 @@ public class InventorySlotUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
 
         RectTransform rectTransform = draggedItem.GetComponent<RectTransform>();
         rectTransform.sizeDelta = new Vector2(50, 50);
+
+        // ИСПРАВЛЕНО: Добавляем компонент для игнорирования GraphicRaycaster
+        CanvasGroup canvasGroup = draggedItem.AddComponent<CanvasGroup>();
+        canvasGroup.blocksRaycasts = false;
+    }
+
+    // ИСПРАВЛЕНО: Добавляем методы для подсветки при hover
+    public void OnPointerEnter(PointerEventData eventData)
+    {
+        if (!isDragging && slotBackground.color != selectedColor)
+        {
+            SetHighlighted(true);
+        }
+    }
+
+    public void OnPointerExit(PointerEventData eventData)
+    {
+        if (!isDragging)
+        {
+            SetHighlighted(false);
+        }
+    }
+
+    private System.Collections.IEnumerator ResetHighlightAfterDelay(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        if (!isDragging)
+        {
+            SetHighlighted(false);
+        }
     }
 
     public InventorySlot GetSlot()
@@ -166,5 +212,20 @@ public class InventorySlotUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
     public bool IsHotbarSlot()
     {
         return isHotbarSlot;
+    }
+
+    public bool CanDropItem(InventorySlotUI draggedSlot)
+    {
+        if (draggedSlot == null || draggedSlot == this) return false;
+
+        if (draggedSlot.slot.IsEmpty()) return false;
+
+        if (slot.IsEmpty()) return true;
+        if (slot.item == draggedSlot.slot.item && slot.item.isStackable)
+        {
+            return slot.quantity < slot.item.maxStackSize;
+        }
+
+        return true;
     }
 }

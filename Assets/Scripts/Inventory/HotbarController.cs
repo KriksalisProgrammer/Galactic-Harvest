@@ -20,12 +20,15 @@ public class HotbarController : MonoBehaviour
         hotbarUI = FindObjectOfType<HotbarUI>();
         inventoryManager = InventoryManager.Instance;
 
-        // Subscribe to hotbar manager events
+        // Subscribe to hotbar manager events (если есть отдельный HotbarManager)
         HotbarManager hotbarManager = FindObjectOfType<HotbarManager>();
         if (hotbarManager != null)
         {
             hotbarManager.OnSlotChanged += SetActiveSlot;
         }
+
+        // Установим первый слот как активный при старте
+        SetActiveSlot(0);
     }
 
     private void Update()
@@ -35,6 +38,13 @@ public class HotbarController : MonoBehaviour
 
     private void HandleHotbarInput()
     {
+        // Проверяем не открыт ли инвентарь
+        InventoryUI inventoryUI = FindObjectOfType<InventoryUI>();
+        if (inventoryUI != null && inventoryUI.IsInventoryOpen())
+        {
+            return; // Не обрабатываем хотбар если инвентарь открыт
+        }
+
         // Check number key presses
         for (int i = 0; i < Mathf.Min(hotbarSize, hotbarKeys.Length); i++)
         {
@@ -47,13 +57,16 @@ public class HotbarController : MonoBehaviour
 
         // Handle mouse wheel scrolling
         float scroll = Input.GetAxis("Mouse ScrollWheel");
-        if (scroll > 0f)
+        if (Mathf.Abs(scroll) > 0.1f) // Небольшой threshold для избежания случайного прокручивания
         {
-            SetActiveSlot((activeSlotIndex + 1) % hotbarSize);
-        }
-        else if (scroll < 0f)
-        {
-            SetActiveSlot((activeSlotIndex - 1 + hotbarSize) % hotbarSize);
+            if (scroll > 0f)
+            {
+                SetActiveSlot((activeSlotIndex + 1) % hotbarSize);
+            }
+            else if (scroll < 0f)
+            {
+                SetActiveSlot((activeSlotIndex - 1 + hotbarSize) % hotbarSize);
+            }
         }
 
         // Use active item on left click (if not in planting mode)
@@ -71,13 +84,18 @@ public class HotbarController : MonoBehaviour
     {
         if (slotIndex < 0 || slotIndex >= hotbarSize) return;
 
+        // Если слот уже активен, ничего не делаем
+        if (activeSlotIndex == slotIndex) return;
+
         activeSlotIndex = slotIndex;
         OnActiveSlotChanged?.Invoke(activeSlotIndex);
 
-        // Update UI
+        Debug.Log($"Active hotbar slot changed to: {activeSlotIndex}");
+
+        // Update UI - теперь HotbarUI сам подпишется на события
         if (hotbarUI != null)
         {
-            // The HotbarUI will handle visual updates through the HotbarManager
+            // The HotbarUI will handle visual updates through the event system
         }
     }
 
@@ -107,5 +125,17 @@ public class HotbarController : MonoBehaviour
     {
         InventorySlot activeSlot = GetActiveSlot();
         return activeSlot?.item;
+    }
+
+    public void RefreshHotbarUI()
+    {
+        for (int i = 0; i < hotbarSize; i++)
+        {
+            InventorySlot slot = inventoryManager?.GetHotbarSlot(i);
+            if (slot != null && hotbarUI != null)
+            {
+                hotbarUI.UpdateSlot(i, slot);
+            }
+        }
     }
 }

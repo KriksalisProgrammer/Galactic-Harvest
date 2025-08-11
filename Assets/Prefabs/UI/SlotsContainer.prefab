@@ -429,7 +429,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 0}
+  m_Sprite: {fileID: 21300000, guid: ddf7a315f5c2b6a49b20d2f46fc9718e, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -457,3 +457,4 @@ MonoBehaviour:
   normalColor: {r: 1, g: 1, b: 1, a: 1}
   highlightColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
   selectedColor: {r: 0, g: 1, b: 0, a: 1}
+  canDropColor: {r: 0.8, g: 0.8, b: 1, a: 1}

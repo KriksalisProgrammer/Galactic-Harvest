@@ -3,20 +3,29 @@ using UnityEngine.UI;
 using UnityEngine.EventSystems;
 using System.Linq;
 
-public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IBeginDragHandler, IDragHandler, IEndDragHandler, IDropHandler
+public class HotbarSlotUI : MonoBehaviour, IPointerClickHandler, IBeginDragHandler, IDragHandler, IEndDragHandler, IDropHandler
 {
     [Header("UI Components")]
     public Image itemIcon;
     public Text quantityText;
     public Image backgroundImage;
+    public Image selectionBorder;
+
+    [Header("Colors")]
+    public Color selectedBorderColor = Color.yellow;
+    public Color normalBorderColor = Color.clear;
+    public Color dragBackgroundColor = new Color(0.5f, 0.5f, 0.5f, 0.8f);
+    public Color normalBackgroundColor = new Color(0.2f, 0.2f, 0.2f, 0.8f);
 
     [Header("Drag Settings")]
     public Canvas dragCanvas;
+    public GameObject dragPreviewPrefab;
 
-    protected InventorySlot currentSlot;
-    protected int slotIndex;
-    protected bool isHotbarSlot = false;
-    protected bool isDragging = false;
+    private InventorySlot currentSlot;
+    private int slotIndex;
+    private bool isHotbarSlot = true;
+    private bool isSelected = false;
+    private bool isDragging = false;
 
     private GameObject dragPreview;
     private CanvasGroup canvasGroup;
@@ -24,9 +33,11 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IBeginDragHa
     // Events
     public System.Action<int, bool> OnSlotClicked;
     public System.Action<int, int, bool, bool> OnItemMoved;
+    public System.Action<int, bool> OnDragStateChanged;
 
-    protected virtual void Awake()
+    private void Awake()
     {
+        // Проверяем и инициализируем компоненты
         canvasGroup = GetComponent<CanvasGroup>();
         if (canvasGroup == null)
         {
@@ -39,30 +50,64 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IBeginDragHa
             dragCanvas = GetComponentInParent<Canvas>();
         }
 
-        // Проверяем и находим компоненты
+        // Проверяем все необходимые компоненты
         if (itemIcon == null)
         {
             itemIcon = transform.Find("ItemIcon")?.GetComponent<Image>();
             if (itemIcon == null)
             {
-                Debug.LogError("ItemIcon not found in InventorySlotUI! Please assign it in Inspector or create a child object named 'ItemIcon' with Image component.");
+                Debug.LogError("ItemIcon not found in HotbarSlotUI! Please assign it in Inspector.");
             }
         }
 
         if (quantityText == null)
         {
             quantityText = transform.Find("QuantityText")?.GetComponent<Text>();
-            // quantityText необязательный
+            // quantityText необязательный, не показываем ошибку
         }
 
-        // Initialize background if not assigned
         if (backgroundImage == null)
         {
             backgroundImage = GetComponent<Image>();
         }
+
+        // Initialize selection border if not assigned
+        if (selectionBorder == null)
+        {
+            selectionBorder = transform.Find("SelectionBorder")?.GetComponent<Image>();
+
+            // If still null, create one
+            if (selectionBorder == null)
+            {
+                CreateSelectionBorder();
+            }
+        }
+
+        // Безопасно устанавливаем начальное состояние
+        if (selectionBorder != null)
+        {
+            SetSelected(false, normalBorderColor);
+        }
     }
 
-    public virtual void SetSlot(InventorySlot slot, int index, bool hotbar)
+    private void CreateSelectionBorder()
+    {
+        GameObject borderObj = new GameObject("SelectionBorder");
+        borderObj.transform.SetParent(transform, false);
+        borderObj.transform.SetAsFirstSibling();
+
+        RectTransform rectTransform = borderObj.AddComponent<RectTransform>();
+        rectTransform.anchorMin = Vector2.zero;
+        rectTransform.anchorMax = Vector2.one;
+        rectTransform.offsetMin = Vector2.zero;
+        rectTransform.offsetMax = Vector2.zero;
+
+        selectionBorder = borderObj.AddComponent<Image>();
+        selectionBorder.color = normalBorderColor;
+        selectionBorder.raycastTarget = false;
+    }
+
+    public void SetSlot(InventorySlot slot, int index, bool hotbar)
     {
         currentSlot = slot;
         slotIndex = index;
@@ -71,12 +116,12 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IBeginDragHa
         UpdateUI();
     }
 
-    protected virtual void UpdateUI()
+    private void UpdateUI()
     {
         // Проверяем на null перед использованием
         if (itemIcon == null)
         {
-            Debug.LogWarning("ItemIcon is null in InventorySlotUI.UpdateUI()");
+            Debug.LogWarning("ItemIcon is null in HotbarSlotUI.UpdateUI()");
             return;
         }
 
@@ -107,7 +152,25 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IBeginDragHa
         }
     }
 
-    public virtual void OnPointerClick(PointerEventData eventData)
+    public void SetSelected(bool selected, Color borderColor)
+    {
+        isSelected = selected;
+
+        if (selectionBorder != null)
+        {
+            selectionBorder.color = selected ? borderColor : normalBorderColor;
+        }
+    }
+
+    public void SetDragVisual(Color backgroundColor)
+    {
+        if (backgroundImage != null)
+        {
+            backgroundImage.color = backgroundColor;
+        }
+    }
+
+    public void OnPointerClick(PointerEventData eventData)
     {
         if (!isDragging)
         {
@@ -115,7 +178,7 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IBeginDragHa
         }
     }
 
-    public virtual void OnBeginDrag(PointerEventData eventData)
+    public void OnBeginDrag(PointerEventData eventData)
     {
         if (currentSlot == null || currentSlot.IsEmpty()) return;
 
@@ -127,9 +190,14 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IBeginDragHa
         // Make slot semi-transparent
         canvasGroup.alpha = 0.6f;
         canvasGroup.blocksRaycasts = false;
+
+        // Change background for better visibility
+        SetDragVisual(dragBackgroundColor);
+
+        OnDragStateChanged?.Invoke(slotIndex, true);
     }
 
-    public virtual void OnDrag(PointerEventData eventData)
+    public void OnDrag(PointerEventData eventData)
     {
         if (dragPreview != null)
         {
@@ -145,7 +213,7 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IBeginDragHa
         }
     }
 
-    public virtual void OnEndDrag(PointerEventData eventData)
+    public void OnEndDrag(PointerEventData eventData)
     {
         isDragging = false;
 
@@ -159,11 +227,14 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IBeginDragHa
         // Restore normal appearance
         canvasGroup.alpha = 1f;
         canvasGroup.blocksRaycasts = true;
+        SetDragVisual(normalBackgroundColor);
+
+        OnDragStateChanged?.Invoke(slotIndex, false);
     }
 
-    public virtual void OnDrop(PointerEventData eventData)
+    public void OnDrop(PointerEventData eventData)
     {
-        InventorySlotUI draggedSlot = eventData.pointerDrag?.GetComponent<InventorySlotUI>();
+        HotbarSlotUI draggedSlot = eventData.pointerDrag?.GetComponent<HotbarSlotUI>();
         if (draggedSlot != null && draggedSlot != this)
         {
             // Move item from dragged slot to this slot
@@ -176,7 +247,7 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IBeginDragHa
         }
     }
 
-    protected virtual void CreateDragPreview()
+    private void CreateDragPreview()
     {
         if (dragCanvas == null || currentSlot == null || currentSlot.IsEmpty()) return;
 
@@ -185,20 +256,15 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IBeginDragHa
         previewObj.transform.SetParent(dragCanvas.transform, false);
 
         Image previewImage = previewObj.AddComponent<Image>();
-        if (currentSlot.item != null && currentSlot.item.icon != null)
-        {
-            previewImage.sprite = currentSlot.item.icon;
-        }
+        previewImage.sprite = currentSlot.item.icon;
         previewImage.raycastTarget = false;
 
-        // Make it slightly smaller and semi-transparent
-        previewImage.color = new Color(1f, 1f, 1f, 0.8f);
-
+        // Make it slightly smaller
         RectTransform rect = previewObj.GetComponent<RectTransform>();
         rect.sizeDelta = new Vector2(64, 64);
 
         // Add quantity text if needed
-        if (currentSlot.quantity > 1 && quantityText != null)
+        if (currentSlot.quantity > 1)
         {
             GameObject textObj = new GameObject("Quantity");
             textObj.transform.SetParent(previewObj.transform, false);
@@ -233,12 +299,5 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IBeginDragHa
     public InventorySlot GetSlot() => currentSlot;
     public int GetSlotIndex() => slotIndex;
     public bool IsHotbarSlot() => isHotbarSlot;
-
-    protected virtual void OnValidate()
-    {
-        if (Application.isPlaying && currentSlot != null)
-        {
-            UpdateUI();
-        }
-    }
+    public bool IsSelected() => isSelected;
 }

@@ -9,7 +9,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 8276352964187992058}
-  - component: {fileID: 3621960229335093217}
   - component: {fileID: 372033537646030141}
   m_Layer: 0
   m_Name: PlantGameObjectPupkin
@@ -33,22 +32,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &3621960229335093217
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4042263222946453771}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b25198a51a9bca243901b221ed7b401d, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  plantData: {fileID: 11400000, guid: db65a0905fc0a9242b4cbecf65574875, type: 2}
-  currentStage: 0
-  isGrowing: 0
-  isReadyForHarvest: 0
 --- !u!65 &372033537646030141
 BoxCollider:
   m_ObjectHideFlags: 0

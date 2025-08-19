@@ -21,7 +21,8 @@ MonoBehaviour:
   maxStackSize: 64
   weight: 1
   isConsumable: 1
-  isEquippable: 1
+  isEquippable: 0
+  itemIcon: {fileID: 21300000, guid: b6884cd3c53e2e649be2d0f1f06e18ac, type: 3}
   plantData: {fileID: 11400000, guid: db65a0905fc0a9242b4cbecf65574875, type: 2}
   plantPrefab: {fileID: 4042263222946453771, guid: 8e8ab40f9df9fd5499a41f60b2a78c22,
     type: 3}

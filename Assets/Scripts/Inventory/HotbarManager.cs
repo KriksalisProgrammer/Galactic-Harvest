@@ -1,132 +1,370 @@
 using UnityEngine;
 
-// ИСПРАВЛЕНО: Объединил HotbarManager и HotbarController в один класс
+// Структура данных для предмета в слоте
+[System.Serializable]
+public class HotbarItem
+{
+    public string itemName = "";
+    public int amount = 0;
+    public Sprite itemIcon;
+
+    // Конструкторы
+    public HotbarItem()
+    {
+        itemName = "";
+        amount = 0;
+        itemIcon = null;
+    }
+
+    public HotbarItem(string name, int amt, Sprite icon = null)
+    {
+        itemName = name;
+        amount = amt;
+        itemIcon = icon;
+    }
+
+    // Проверяет, пуст ли слот
+    public bool IsEmpty()
+    {
+        return string.IsNullOrEmpty(itemName) || amount <= 0;
+    }
+
+    // Очищает слот
+    public void Clear()
+    {
+        itemName = "";
+        amount = 0;
+        itemIcon = null;
+    }
+
+    // Проверяет, можно ли объединить с другим предметом
+    public bool CanStackWith(HotbarItem other)
+    {
+        if (other == null || IsEmpty() || other.IsEmpty())
+            return false;
+
+        return itemName == other.itemName;
+    }
+}
+
+// Основной менеджер хотбара
 public class HotbarManager : MonoBehaviour
 {
-    [Header("Settings")]
-    public int hotbarSize = 8;
-    public KeyCode[] hotbarKeys = {
-        KeyCode.Alpha1, KeyCode.Alpha2, KeyCode.Alpha3, KeyCode.Alpha4,
-        KeyCode.Alpha5, KeyCode.Alpha6, KeyCode.Alpha7, KeyCode.Alpha8
-    };
+    [Header("Настройки хотбара")]
+    public int slotCount = 8;
+    public HotbarItem[] slots;
 
-    private int activeSlotIndex = 0;
-    private HotbarUI hotbarUI;
-    private InventoryManager inventoryManager;
+    [Header("Управление")]
+    public int selectedSlot = 0;
+    public float scrollDelay = 0.1f;
 
+    [Header("События")]
     public System.Action<int> OnSlotChanged;
+    public System.Action<HotbarItem, int> OnItemChanged;
+    public System.Action OnHotbarUpdated;
 
-    private void Start()
+    private float lastScrollTime = 0f;
+
+    void Awake()
     {
-        hotbarUI = FindObjectOfType<HotbarUI>();
-        inventoryManager = InventoryManager.Instance;
-
-        // Установим первый слот как активный при старте
-        SetActiveSlot(0);
+        InitializeHotbar();
     }
 
-    private void Update()
+    void Update()
     {
-        HandleHotbarInput();
+        HandleInput();
     }
 
-    private void HandleHotbarInput()
+    private void InitializeHotbar()
     {
-        // Проверяем не открыт ли инвентарь
-        InventoryUI inventoryUI = FindObjectOfType<InventoryUI>();
-        if (inventoryUI != null && inventoryUI.IsInventoryOpen())
+        // Создаем массив слотов если он не создан
+        if (slots == null || slots.Length != slotCount)
         {
-            return; // Не обрабатываем хотбар если инвентарь открыт
+            slots = new HotbarItem[slotCount];
+            for (int i = 0; i < slotCount; i++)
+            {
+                slots[i] = new HotbarItem();
+            }
         }
 
-        // Проверяем не в режиме посадки ли мы
-        PlayerPlanting planting = FindObjectOfType<PlayerPlanting>();
-        bool inPlantingMode = planting != null && planting.IsInPlantingMode();
-
-        // Check number key presses
-        for (int i = 0; i < Mathf.Min(hotbarSize, hotbarKeys.Length); i++)
+        // Проверяем, что все слоты инициализированы
+        for (int i = 0; i < slots.Length; i++)
         {
-            if (Input.GetKeyDown(hotbarKeys[i]))
+            if (slots[i] == null)
             {
-                SetActiveSlot(i);
+                slots[i] = new HotbarItem();
+            }
+        }
+
+        // Убеждаемся, что выбранный слот в пределах массива
+        selectedSlot = Mathf.Clamp(selectedSlot, 0, slotCount - 1);
+    }
+
+    private void HandleInput()
+    {
+        HandleScrollInput();
+        HandleKeyboardInput();
+    }
+
+    private void HandleScrollInput()
+    {
+        // Проверяем задержку для прокрутки
+        if (Time.time - lastScrollTime < scrollDelay)
+            return;
+
+        float scroll = Input.GetAxis("Mouse ScrollWheel");
+
+        if (scroll > 0.1f)
+        {
+            SelectNextSlot();
+            lastScrollTime = Time.time;
+        }
+        else if (scroll < -0.1f)
+        {
+            SelectPreviousSlot();
+            lastScrollTime = Time.time;
+        }
+    }
+
+    private void HandleKeyboardInput()
+    {
+        // Проверяем нажатия цифровых клавиш
+        for (int i = 0; i < Mathf.Min(slotCount, 9); i++)
+        {
+            KeyCode key = KeyCode.Alpha1 + i;
+            if (Input.GetKeyDown(key))
+            {
+                SelectSlot(i);
                 break;
             }
         }
 
-        // Handle mouse wheel scrolling (только если не в режиме посадки)
-        if (!inPlantingMode)
+        // Дополнительная проверка для клавиши 0 (10-й слот)
+        if (Input.GetKeyDown(KeyCode.Alpha0) && slotCount > 9)
         {
-            float scroll = Input.GetAxis("Mouse ScrollWheel");
-            if (Mathf.Abs(scroll) > 0.1f)
+            SelectSlot(9);
+        }
+    }
+
+    public void SelectSlot(int index)
+    {
+        if (index >= 0 && index < slotCount)
+        {
+            int previousSlot = selectedSlot;
+            selectedSlot = index;
+
+            if (previousSlot != selectedSlot)
             {
-                if (scroll > 0f)
-                {
-                    SetActiveSlot((activeSlotIndex + 1) % hotbarSize);
-                }
-                else if (scroll < 0f)
-                {
-                    SetActiveSlot((activeSlotIndex - 1 + hotbarSize) % hotbarSize);
-                }
+                OnSlotChanged?.Invoke(selectedSlot);
+                Debug.Log($"Выбран слот {selectedSlot + 1}");
+            }
+        }
+    }
+
+    public void SelectNextSlot()
+    {
+        SelectSlot((selectedSlot + 1) % slotCount);
+    }
+
+    public void SelectPreviousSlot()
+    {
+        SelectSlot((selectedSlot - 1 + slotCount) % slotCount);
+    }
+
+    public bool AddItem(string itemName, int amount, Sprite icon = null)
+    {
+        if (string.IsNullOrEmpty(itemName) || amount <= 0)
+        {
+            Debug.LogWarning("Попытка добавить недопустимый предмет");
+            return false;
+        }
+
+        // Сначала ищем существующий предмет для стакинга
+        for (int i = 0; i < slotCount; i++)
+        {
+            if (slots[i].itemName == itemName)
+            {
+                slots[i].amount += amount;
+                OnItemChanged?.Invoke(slots[i], i);
+                OnHotbarUpdated?.Invoke();
+                Debug.Log($"Добавлено {amount} x {itemName}. Всего в слоте {i + 1}: {slots[i].amount}");
+                return true;
             }
         }
 
-        // Use active item on left click (if not in planting mode)
-        if (Input.GetMouseButtonDown(0) && !inPlantingMode)
+        // Если не нашли существующий, ищем пустой слот
+        for (int i = 0; i < slotCount; i++)
         {
-            UseActiveItem();
+            if (slots[i].IsEmpty())
+            {
+                slots[i] = new HotbarItem(itemName, amount, icon);
+                OnItemChanged?.Invoke(slots[i], i);
+                OnHotbarUpdated?.Invoke();
+                Debug.Log($"Новый предмет в слоте {i + 1}: {amount} x {itemName}");
+                return true;
+            }
+        }
+
+        Debug.Log("Хотбар заполнен! Не удалось добавить предмет.");
+        return false;
+    }
+
+    public bool UseItem(int slotIndex, int amount = 1)
+    {
+        if (slotIndex < 0 || slotIndex >= slotCount)
+        {
+            Debug.LogWarning($"Недопустимый индекс слота: {slotIndex}");
+            return false;
+        }
+
+        var slot = slots[slotIndex];
+
+        if (slot.IsEmpty() || slot.amount < amount)
+        {
+            Debug.Log($"Недостаточно предметов в слоте {slotIndex + 1}");
+            return false;
+        }
+
+        string itemName = slot.itemName;
+        slot.amount -= amount;
+
+        if (slot.amount <= 0)
+        {
+            slot.Clear();
+        }
+
+        OnItemChanged?.Invoke(slot, slotIndex);
+        OnHotbarUpdated?.Invoke();
+        Debug.Log($"Использовано {amount} x {itemName} из слота {slotIndex + 1}. Осталось: {slot.amount}");
+        return true;
+    }
+
+    public bool UseSelectedItem(int amount = 1)
+    {
+        return UseItem(selectedSlot, amount);
+    }
+
+    public bool RemoveItem(string itemName, int amount)
+    {
+        int totalRemoved = 0;
+
+        // Проходим по всем слотам и удаляем предметы
+        for (int i = 0; i < slotCount && totalRemoved < amount; i++)
+        {
+            if (slots[i].itemName == itemName)
+            {
+                int toRemove = Mathf.Min(slots[i].amount, amount - totalRemoved);
+                slots[i].amount -= toRemove;
+                totalRemoved += toRemove;
+
+                if (slots[i].amount <= 0)
+                {
+                    slots[i].Clear();
+                }
+
+                OnItemChanged?.Invoke(slots[i], i);
+            }
+        }
+
+        if (totalRemoved > 0)
+        {
+            OnHotbarUpdated?.Invoke();
+            Debug.Log($"Удалено {totalRemoved} x {itemName}");
+            return totalRemoved == amount;
+        }
+
+        Debug.Log($"Предмет {itemName} не найден в хотбаре");
+        return false;
+    }
+
+    public void ClearSlot(int slotIndex)
+    {
+        if (slotIndex >= 0 && slotIndex < slotCount)
+        {
+            slots[slotIndex].Clear();
+            OnItemChanged?.Invoke(slots[slotIndex], slotIndex);
+            OnHotbarUpdated?.Invoke();
         }
     }
 
-    public void SetActiveSlot(int slotIndex)
+    public void ClearAllSlots()
     {
-        if (slotIndex < 0 || slotIndex >= hotbarSize) return;
-
-        // Если слот уже активен, ничего не делаем
-        if (activeSlotIndex == slotIndex) return;
-
-        activeSlotIndex = slotIndex;
-        OnSlotChanged?.Invoke(activeSlotIndex);
-
-        Debug.Log($"Active hotbar slot changed to: {activeSlotIndex}");
-    }
-
-    public void UseActiveItem()
-    {
-        if (inventoryManager != null)
+        for (int i = 0; i < slotCount; i++)
         {
-            inventoryManager.UseHotbarItem(activeSlotIndex);
+            slots[i].Clear();
         }
+        OnHotbarUpdated?.Invoke();
+        Debug.Log("Хотбар очищен");
     }
 
-    public int GetActiveSlotIndex()
+    // Геттеры
+    public HotbarItem GetSelectedItem()
     {
-        return activeSlotIndex;
+        return slots[selectedSlot];
     }
 
-    public InventorySlot GetActiveSlot()
+    public HotbarItem GetItem(int slotIndex)
     {
-        if (inventoryManager != null)
-        {
-            return inventoryManager.GetHotbarSlot(activeSlotIndex);
-        }
+        if (slotIndex >= 0 && slotIndex < slotCount)
+            return slots[slotIndex];
         return null;
     }
 
-    public Item GetActiveItem()
+    public string GetSelectedItemName()
     {
-        InventorySlot activeSlot = GetActiveSlot();
-        return activeSlot?.item;
+        var item = GetSelectedItem();
+        return item?.itemName ?? "";
     }
 
-    // Метод для принудительного обновления UI
-    public void RefreshHotbarUI()
+    public int GetSelectedSlot()
     {
-        for (int i = 0; i < hotbarSize; i++)
+        return selectedSlot;
+    }
+
+    public bool HasItem(string itemName, int minAmount = 1)
+    {
+        int totalAmount = 0;
+        for (int i = 0; i < slotCount; i++)
         {
-            InventorySlot slot = inventoryManager?.GetHotbarSlot(i);
-            if (slot != null && hotbarUI != null)
+            if (slots[i].itemName == itemName)
             {
-                hotbarUI.UpdateSlot(i, slot);
+                totalAmount += slots[i].amount;
+                if (totalAmount >= minAmount)
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    public int GetItemCount(string itemName)
+    {
+        int totalAmount = 0;
+        for (int i = 0; i < slotCount; i++)
+        {
+            if (slots[i].itemName == itemName)
+            {
+                totalAmount += slots[i].amount;
+            }
+        }
+        return totalAmount;
+    }
+
+    // Методы для отладки
+    [ContextMenu("Print Hotbar Contents")]
+    public void PrintHotbarContents()
+    {
+        Debug.Log("=== HOTBAR CONTENTS ===");
+        for (int i = 0; i < slotCount; i++)
+        {
+            var slot = slots[i];
+            if (slot.IsEmpty())
+            {
+                Debug.Log($"Slot {i + 1}: Empty");
+            }
+            else
+            {
+                string selected = (i == selectedSlot) ? " [SELECTED]" : "";
+                Debug.Log($"Slot {i + 1}: {slot.amount} x {slot.itemName}{selected}");
             }
         }
     }

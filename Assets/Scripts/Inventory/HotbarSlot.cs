@@ -1,14 +1,14 @@
-using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
-
 [System.Serializable]
 public class HotbarSlot
 {
-    public Item item;
+    public Item itemData;
+    public int amount;
 
-    public HotbarSlot()
+    public bool IsEmpty => itemData == null;
+
+    public void Clear()
     {
-        item = null;
+        itemData = null;
+        amount = 0;
     }
 }

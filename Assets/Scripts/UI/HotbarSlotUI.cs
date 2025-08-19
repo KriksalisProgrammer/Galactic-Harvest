@@ -1,303 +1,215 @@
 using UnityEngine;
 using UnityEngine.UI;
-using UnityEngine.EventSystems;
-using System.Linq;
 
-public class HotbarSlotUI : MonoBehaviour, IPointerClickHandler, IBeginDragHandler, IDragHandler, IEndDragHandler, IDropHandler
+public class HotbarSlotUI : MonoBehaviour
 {
     [Header("UI Components")]
-    public Image itemIcon;
-    public Text quantityText;
+    public Image iconImage;
+    public Image selectedFrame;
     public Image backgroundImage;
-    public Image selectionBorder;
 
-    [Header("Colors")]
-    public Color selectedBorderColor = Color.yellow;
-    public Color normalBorderColor = Color.clear;
-    public Color dragBackgroundColor = new Color(0.5f, 0.5f, 0.5f, 0.8f);
-    public Color normalBackgroundColor = new Color(0.2f, 0.2f, 0.2f, 0.8f);
+    [Header("Visual Settings")]
+    public Color normalBackgroundColor = new Color(1f, 1f, 1f, 0.3f);
+    public Color selectedBackgroundColor = new Color(1f, 1f, 0.5f, 0.6f);
+    public Color emptyIconColor = new Color(1f, 1f, 1f, 0f);
+    public Color normalIconColor = new Color(1f, 1f, 1f, 1f);
 
-    [Header("Drag Settings")]
-    public Canvas dragCanvas;
-    public GameObject dragPreviewPrefab;
+    private PlantSeed plantSeed;
 
-    private InventorySlot currentSlot;
-    private int slotIndex;
-    private bool isHotbarSlot = true;
-    private bool isSelected = false;
-    private bool isDragging = false;
-
-    private GameObject dragPreview;
-    private CanvasGroup canvasGroup;
-
-    // Events
-    public System.Action<int, bool> OnSlotClicked;
-    public System.Action<int, int, bool, bool> OnItemMoved;
-    public System.Action<int, bool> OnDragStateChanged;
-
-    private void Awake()
+    private void Start()
     {
-        // Проверяем и инициализируем компоненты
-        canvasGroup = GetComponent<CanvasGroup>();
-        if (canvasGroup == null)
+        // Инициализируем начальное состояние
+        InitializeSlot();
+    }
+
+    private void InitializeSlot()
+    {
+        // Устанавливаем начальные значения для UI элементов
+        if (backgroundImage != null)
         {
-            canvasGroup = gameObject.AddComponent<CanvasGroup>();
+            backgroundImage.color = normalBackgroundColor;
         }
 
-        // Find drag canvas if not assigned
-        if (dragCanvas == null)
+        if (selectedFrame != null)
         {
-            dragCanvas = GetComponentInParent<Canvas>();
+            selectedFrame.enabled = false;
         }
 
-        // Проверяем все необходимые компоненты
-        if (itemIcon == null)
+        if (iconImage != null)
         {
-            itemIcon = transform.Find("ItemIcon")?.GetComponent<Image>();
-            if (itemIcon == null)
+            iconImage.enabled = false;
+            iconImage.sprite = null;
+        }
+    }
+
+    public void SetItem(PlantSeed seed)
+    {
+        plantSeed = seed;
+
+        if (iconImage != null)
+        {
+            if (seed != null && seed.icon != null)
             {
-                Debug.LogError("ItemIcon not found in HotbarSlotUI! Please assign it in Inspector.");
+                // Устанавливаем иконку семени
+                iconImage.sprite = seed.icon;
+                iconImage.enabled = true;
+                iconImage.color = normalIconColor;
+            }
+            else
+            {
+                // Очищаем слот если семя null или нет иконки
+                ClearSlotVisuals();
             }
         }
 
-        if (quantityText == null)
+        // Обновляем визуал фона в зависимости от наличия предмета
+        UpdateBackgroundVisual();
+    }
+
+    public void ClearSlot()
+    {
+        plantSeed = null;
+        ClearSlotVisuals();
+        UpdateBackgroundVisual();
+    }
+
+    private void ClearSlotVisuals()
+    {
+        if (iconImage != null)
         {
-            quantityText = transform.Find("QuantityText")?.GetComponent<Text>();
-            // quantityText необязательный, не показываем ошибку
+            iconImage.sprite = null;
+            iconImage.enabled = false;
+            iconImage.color = emptyIconColor;
+        }
+    }
+
+    private void UpdateBackgroundVisual()
+    {
+        if (backgroundImage != null)
+        {
+            // Слегка затемняем фон для пустых слотов
+            Color targetColor = HasItem() ? normalBackgroundColor :
+                               new Color(normalBackgroundColor.r * 0.5f,
+                                       normalBackgroundColor.g * 0.5f,
+                                       normalBackgroundColor.b * 0.5f,
+                                       normalBackgroundColor.a * 0.7f);
+            backgroundImage.color = targetColor;
+        }
+    }
+
+    public bool HasItem()
+    {
+        return plantSeed != null;
+    }
+
+    public PlantSeed GetPlantSeed()
+    {
+        return plantSeed;
+    }
+
+    public void SetSelected(bool isSelected)
+    {
+        // Управляем рамкой выделения
+        if (selectedFrame != null)
+        {
+            selectedFrame.enabled = isSelected;
+        }
+
+        // Управляем цветом фона
+        if (backgroundImage != null)
+        {
+            if (isSelected)
+            {
+                backgroundImage.color = selectedBackgroundColor;
+            }
+            else
+            {
+                // Возвращаем нормальный цвет в зависимости от наличия предмета
+                UpdateBackgroundVisual();
+            }
+        }
+
+        // Дополнительный эффект для иконки при выделении
+        if (iconImage != null && HasItem())
+        {
+            iconImage.color = isSelected ?
+                new Color(normalIconColor.r, normalIconColor.g, normalIconColor.b, 1f) :
+                normalIconColor;
+        }
+    }
+
+    // Дополнительные методы для отладки
+    public string GetSlotInfo()
+    {
+        if (HasItem())
+        {
+            return $"Slot contains: {plantSeed.itemName}";
+        }
+        return "Empty slot";
+    }
+
+    // Метод для проверки корректности настройки UI
+    public bool ValidateUIComponents()
+    {
+        bool isValid = true;
+
+        if (iconImage == null)
+        {
+            Debug.LogWarning($"IconImage not assigned on {gameObject.name}");
+            isValid = false;
+        }
+
+        if (selectedFrame == null)
+        {
+            Debug.LogWarning($"SelectedFrame not assigned on {gameObject.name}");
+            isValid = false;
         }
 
         if (backgroundImage == null)
         {
-            backgroundImage = GetComponent<Image>();
+            Debug.LogWarning($"BackgroundImage not assigned on {gameObject.name}");
+            isValid = false;
         }
 
-        // Initialize selection border if not assigned
-        if (selectionBorder == null)
-        {
-            selectionBorder = transform.Find("SelectionBorder")?.GetComponent<Image>();
-
-            // If still null, create one
-            if (selectionBorder == null)
-            {
-                CreateSelectionBorder();
-            }
-        }
-
-        // Безопасно устанавливаем начальное состояние
-        if (selectionBorder != null)
-        {
-            SetSelected(false, normalBorderColor);
-        }
+        return isValid;
     }
 
-    private void CreateSelectionBorder()
+    // Метод для анимированного перехода между состояниями (опционально)
+    public void SetSelectedAnimated(bool isSelected, float animationSpeed = 5f)
     {
-        GameObject borderObj = new GameObject("SelectionBorder");
-        borderObj.transform.SetParent(transform, false);
-        borderObj.transform.SetAsFirstSibling();
-
-        RectTransform rectTransform = borderObj.AddComponent<RectTransform>();
-        rectTransform.anchorMin = Vector2.zero;
-        rectTransform.anchorMax = Vector2.one;
-        rectTransform.offsetMin = Vector2.zero;
-        rectTransform.offsetMax = Vector2.zero;
-
-        selectionBorder = borderObj.AddComponent<Image>();
-        selectionBorder.color = normalBorderColor;
-        selectionBorder.raycastTarget = false;
-    }
-
-    public void SetSlot(InventorySlot slot, int index, bool hotbar)
-    {
-        currentSlot = slot;
-        slotIndex = index;
-        isHotbarSlot = hotbar;
-
-        UpdateUI();
-    }
-
-    private void UpdateUI()
-    {
-        // Проверяем на null перед использованием
-        if (itemIcon == null)
+        if (selectedFrame != null)
         {
-            Debug.LogWarning("ItemIcon is null in HotbarSlotUI.UpdateUI()");
-            return;
+            selectedFrame.enabled = isSelected;
         }
 
-        if (currentSlot == null || currentSlot.IsEmpty())
-        {
-            itemIcon.sprite = null;
-            itemIcon.color = Color.clear;
-
-            if (quantityText != null)
-                quantityText.text = "";
-        }
-        else
-        {
-            itemIcon.sprite = currentSlot.item.icon;
-            itemIcon.color = Color.white;
-
-            if (quantityText != null)
-            {
-                if (currentSlot.quantity > 1)
-                {
-                    quantityText.text = currentSlot.quantity.ToString();
-                }
-                else
-                {
-                    quantityText.text = "";
-                }
-            }
-        }
+        // Можно добавить анимацию цвета здесь
+        StartCoroutine(AnimateBackgroundColor(isSelected, animationSpeed));
     }
 
-    public void SetSelected(bool selected, Color borderColor)
+    private System.Collections.IEnumerator AnimateBackgroundColor(bool isSelected, float speed)
     {
-        isSelected = selected;
+        if (backgroundImage == null) yield break;
 
-        if (selectionBorder != null)
+        Color startColor = backgroundImage.color;
+        Color targetColor = isSelected ? selectedBackgroundColor : normalBackgroundColor;
+
+        if (!HasItem() && !isSelected)
         {
-            selectionBorder.color = selected ? borderColor : normalBorderColor;
-        }
-    }
-
-    public void SetDragVisual(Color backgroundColor)
-    {
-        if (backgroundImage != null)
-        {
-            backgroundImage.color = backgroundColor;
-        }
-    }
-
-    public void OnPointerClick(PointerEventData eventData)
-    {
-        if (!isDragging)
-        {
-            OnSlotClicked?.Invoke(slotIndex, isHotbarSlot);
-        }
-    }
-
-    public void OnBeginDrag(PointerEventData eventData)
-    {
-        if (currentSlot == null || currentSlot.IsEmpty()) return;
-
-        isDragging = true;
-
-        // Create drag preview
-        CreateDragPreview();
-
-        // Make slot semi-transparent
-        canvasGroup.alpha = 0.6f;
-        canvasGroup.blocksRaycasts = false;
-
-        // Change background for better visibility
-        SetDragVisual(dragBackgroundColor);
-
-        OnDragStateChanged?.Invoke(slotIndex, true);
-    }
-
-    public void OnDrag(PointerEventData eventData)
-    {
-        if (dragPreview != null)
-        {
-            Vector2 localPoint;
-            RectTransformUtility.ScreenPointToLocalPointInRectangle(
-                dragCanvas.transform as RectTransform,
-                eventData.position,
-                eventData.pressEventCamera,
-                out localPoint
-            );
-
-            dragPreview.transform.localPosition = localPoint;
-        }
-    }
-
-    public void OnEndDrag(PointerEventData eventData)
-    {
-        isDragging = false;
-
-        // Destroy drag preview
-        if (dragPreview != null)
-        {
-            Destroy(dragPreview);
-            dragPreview = null;
+            targetColor = new Color(normalBackgroundColor.r * 0.5f,
+                                  normalBackgroundColor.g * 0.5f,
+                                  normalBackgroundColor.b * 0.5f,
+                                  normalBackgroundColor.a * 0.7f);
         }
 
-        // Restore normal appearance
-        canvasGroup.alpha = 1f;
-        canvasGroup.blocksRaycasts = true;
-        SetDragVisual(normalBackgroundColor);
+        float elapsed = 0f;
 
-        OnDragStateChanged?.Invoke(slotIndex, false);
-    }
-
-    public void OnDrop(PointerEventData eventData)
-    {
-        HotbarSlotUI draggedSlot = eventData.pointerDrag?.GetComponent<HotbarSlotUI>();
-        if (draggedSlot != null && draggedSlot != this)
+        while (elapsed < 1f)
         {
-            // Move item from dragged slot to this slot
-            OnItemMoved?.Invoke(
-                draggedSlot.slotIndex,
-                slotIndex,
-                draggedSlot.isHotbarSlot,
-                isHotbarSlot
-            );
-        }
-    }
-
-    private void CreateDragPreview()
-    {
-        if (dragCanvas == null || currentSlot == null || currentSlot.IsEmpty()) return;
-
-        // Create simple drag preview
-        GameObject previewObj = new GameObject("DragPreview");
-        previewObj.transform.SetParent(dragCanvas.transform, false);
-
-        Image previewImage = previewObj.AddComponent<Image>();
-        previewImage.sprite = currentSlot.item.icon;
-        previewImage.raycastTarget = false;
-
-        // Make it slightly smaller
-        RectTransform rect = previewObj.GetComponent<RectTransform>();
-        rect.sizeDelta = new Vector2(64, 64);
-
-        // Add quantity text if needed
-        if (currentSlot.quantity > 1)
-        {
-            GameObject textObj = new GameObject("Quantity");
-            textObj.transform.SetParent(previewObj.transform, false);
-
-            Text quantityPreview = textObj.AddComponent<Text>();
-            quantityPreview.text = currentSlot.quantity.ToString();
-
-            // Пытаемся найти подходящий шрифт
-            Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            if (font == null)
-            {
-                font = Resources.FindObjectsOfTypeAll<Font>().FirstOrDefault();
-            }
-            quantityPreview.font = font;
-
-            quantityPreview.fontSize = 14;
-            quantityPreview.color = Color.white;
-            quantityPreview.alignment = TextAnchor.LowerRight;
-            quantityPreview.raycastTarget = false;
-
-            RectTransform textRect = textObj.GetComponent<RectTransform>();
-            textRect.anchorMin = Vector2.zero;
-            textRect.anchorMax = Vector2.one;
-            textRect.offsetMin = Vector2.zero;
-            textRect.offsetMax = Vector2.zero;
+            elapsed += Time.deltaTime * speed;
+            backgroundImage.color = Color.Lerp(startColor, targetColor, elapsed);
+            yield return null;
         }
 
-        dragPreview = previewObj;
+        backgroundImage.color = targetColor;
     }
-
-    // Getters
-    public InventorySlot GetSlot() => currentSlot;
-    public int GetSlotIndex() => slotIndex;
-    public bool IsHotbarSlot() => isHotbarSlot;
-    public bool IsSelected() => isSelected;
 }

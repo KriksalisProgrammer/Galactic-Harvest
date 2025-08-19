@@ -1,9 +1,11 @@
 using UnityEngine;
-
+using UnityEngine.UI;
+ 
 [CreateAssetMenu(fileName = "New Plant Seed", menuName = "Inventory/Plant Seed")]
 public class PlantSeed : Item
 {
     [Header("Plant Settings")]
+    public Sprite itemIcon;
     public PlantData plantData;
     public GameObject plantPrefab;
     public GameObject previewPrefab;
@@ -17,7 +19,11 @@ public class PlantSeed : Item
         PlayerPlanting planting = FindObjectOfType<PlayerPlanting>();
         if (planting != null)
         {
-            planting.TryPlantSeed(this);
+            Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+            if (Physics.Raycast(ray, out RaycastHit hit))
+            {
+                planting.TryPlantSeed(this, hit.point);
+            }
         }
         else
         {

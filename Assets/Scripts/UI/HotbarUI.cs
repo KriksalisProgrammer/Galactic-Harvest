@@ -1,224 +1,183 @@
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.UI;
 
 public class HotbarUI : MonoBehaviour
 {
     [Header("UI References")]
     public Transform hotbarSlotsParent;
     public GameObject hotbarSlotPrefab;
+    public int hotbarSize = 8;
 
-    [Header("Selection Settings")]
-    public Color selectedColor = Color.yellow;
-    public Color normalColor = Color.white;
-    public float selectionBorderWidth = 3f;
-
-    [Header("Drag Visual Settings")]
-    public Color dragColor = new Color(1f, 1f, 1f, 0.5f);
-    public Color normalDragColor = Color.white;
+    [Header("Input Settings")]
+    public KeyCode[] slotKeys = { KeyCode.Alpha1, KeyCode.Alpha2, KeyCode.Alpha3, KeyCode.Alpha4,
+                                  KeyCode.Alpha5, KeyCode.Alpha6, KeyCode.Alpha7, KeyCode.Alpha8 };
+    public float scrollDelay = 0.1f;
 
     private List<HotbarSlotUI> hotbarSlots = new List<HotbarSlotUI>();
-    private int selectedSlotIndex = 0;
-    private const int HOTBAR_SIZE = 8;
+    private int selectedIndex = 0;
+    private float lastScrollTime = 0f;
 
+    // События для уведомления других систем
     public System.Action<int> OnSlotSelected;
+    public System.Action<PlantSeed, int> OnItemChanged;
 
     private void Start()
     {
-        Initialize();
-
-        // Subscribe to inventory changes  
-        if (InventoryManager.Instance != null)
-        {
-            InventoryManager.Instance.OnHotbarChanged += UpdateHotbarSlot;
-        }
-
-        // Set initial selection
-        SelectSlot(0);
+        InitializeHotbar();
+        UpdateSelectionVisual();
     }
 
     private void Update()
     {
-        HandleInput();
+        HandleMouseScroll();
+        HandleKeyboardInput();
     }
 
-    private void HandleInput()
+    public void InitializeHotbar()
     {
-        // Handle number keys 1-8
-        for (int i = 0; i < HOTBAR_SIZE; i++)
+        // Очищаем существующие слоты
+        foreach (var slot in hotbarSlots)
         {
-            if (Input.GetKeyDown(KeyCode.Alpha1 + i))
-            {
-                SelectSlot(i);
-                break;
-            }
+            if (slot != null && slot.gameObject != null)
+                DestroyImmediate(slot.gameObject);
         }
 
-        // Handle mouse wheel
-        float scroll = Input.GetAxis("Mouse ScrollWheel");
-        if (scroll != 0)
-        {
-            int direction = scroll > 0 ? -1 : 1;
-            int newIndex = (selectedSlotIndex + direction + HOTBAR_SIZE) % HOTBAR_SIZE;
-            SelectSlot(newIndex);
-        }
-    }
-
-    private void Initialize()
-    {
-        if (hotbarSlotsParent == null || hotbarSlotPrefab == null)
-        {
-            Debug.LogError("HotbarUI: Required references not assigned!");
-            return;
-        }
-
-        // Clear existing slots
-        foreach (Transform child in hotbarSlotsParent)
-        {
-            if (Application.isPlaying)
-                Destroy(child.gameObject);
-            else
-                DestroyImmediate(child.gameObject);
-        }
         hotbarSlots.Clear();
 
-        // Create hotbar slots
-        for (int i = 0; i < HOTBAR_SIZE; i++)
+        // Создаем новые слоты
+        for (int i = 0; i < hotbarSize; i++)
         {
             GameObject slotObj = Instantiate(hotbarSlotPrefab, hotbarSlotsParent);
+            slotObj.name = $"HotbarSlot_{i}";
+
             HotbarSlotUI slotUI = slotObj.GetComponent<HotbarSlotUI>();
-
-            if (slotUI != null)
+            if (slotUI == null)
             {
-                slotUI.OnSlotClicked += OnSlotClicked;
-                slotUI.OnItemMoved += OnItemMoved;
-                slotUI.OnDragStateChanged += OnDragStateChanged;
-                hotbarSlots.Add(slotUI);
+                Debug.LogError($"HotbarSlotUI component not found on prefab at slot {i}");
+                continue;
+            }
 
-                // Initialize with empty slot
-                InventorySlot emptySlot = new InventorySlot();
-                slotUI.SetSlot(emptySlot, i, true);
+            hotbarSlots.Add(slotUI);
+        }
+
+        selectedIndex = 0;
+        UpdateSelectionVisual();
+    }
+
+    private void HandleMouseScroll()
+    {
+        if (Time.time - lastScrollTime < scrollDelay) return;
+
+        float scroll = Input.GetAxis("Mouse ScrollWheel");
+
+        if (scroll > 0.1f)
+        {
+            SelectNext();
+            lastScrollTime = Time.time;
+        }
+        else if (scroll < -0.1f)
+        {
+            SelectPrevious();
+            lastScrollTime = Time.time;
+        }
+    }
+
+    private void HandleKeyboardInput()
+    {
+        for (int i = 0; i < slotKeys.Length && i < hotbarSlots.Count; i++)
+        {
+            if (Input.GetKeyDown(slotKeys[i]))
+            {
+                SelectSlot(i);
             }
         }
     }
 
     public void SelectSlot(int index)
     {
-        if (index < 0 || index >= HOTBAR_SIZE) return;
-
-        // Remove selection from previous slot
-        if (selectedSlotIndex >= 0 && selectedSlotIndex < hotbarSlots.Count)
-        {
-            hotbarSlots[selectedSlotIndex].SetSelected(false, normalColor);
-        }
-
-        selectedSlotIndex = index;
-
-        // Set selection on new slot
-        if (selectedSlotIndex >= 0 && selectedSlotIndex < hotbarSlots.Count)
-        {
-            hotbarSlots[selectedSlotIndex].SetSelected(true, selectedColor);
-        }
-
-        OnSlotSelected?.Invoke(selectedSlotIndex);
-    }
-
-    public void UpdateHotbarSlot(int index, InventorySlot slot)
-    {
         if (index >= 0 && index < hotbarSlots.Count)
         {
-            hotbarSlots[index].SetSlot(slot, index, true);
-
-            // Maintain selection state
-            if (index == selectedSlotIndex)
-            {
-                hotbarSlots[index].SetSelected(true, selectedColor);
-            }
+            selectedIndex = index;
+            UpdateSelectionVisual();
+            OnSlotSelected?.Invoke(selectedIndex);
         }
     }
 
-    // Метод для совместимости со старым кодом
-    public void UpdateSlot(int index, InventorySlot slot)
+    public void SelectNext()
     {
-        UpdateHotbarSlot(index, slot);
+        selectedIndex = (selectedIndex + 1) % hotbarSlots.Count;
+        UpdateSelectionVisual();
+        OnSlotSelected?.Invoke(selectedIndex);
     }
 
-    private void OnSlotClicked(int slotIndex, bool isHotbarSlot)
+    public void SelectPrevious()
     {
-        if (isHotbarSlot)
+        selectedIndex = (selectedIndex - 1 + hotbarSlots.Count) % hotbarSlots.Count;
+        UpdateSelectionVisual();
+        OnSlotSelected?.Invoke(selectedIndex);
+    }
+
+    private void UpdateSelectionVisual()
+    {
+        for (int i = 0; i < hotbarSlots.Count; i++)
         {
-            SelectSlot(slotIndex);
-
-            // Try to use item if it's usable
-            if (InventoryManager.Instance != null)
-            {
-                InventorySlot slot = InventoryManager.Instance.GetHotbarSlot(slotIndex);
-                if (slot != null && !slot.IsEmpty() && slot.item.CanUse())
-                {
-                    slot.item.Use();
-                    // Remove one item if it's consumable
-                    if (slot.item.isConsumable)
-                    {
-                        InventoryManager.Instance.RemoveFromHotbar(slotIndex, 1);
-                    }
-                }
-            }
+            if (hotbarSlots[i] != null)
+                hotbarSlots[i].SetSelected(i == selectedIndex);
         }
     }
 
-    private void OnItemMoved(int fromIndex, int toIndex, bool fromHotbar, bool toHotbar)
+    public void SetItemToSlot(int slotIndex, PlantSeed seed)
     {
-        if (InventoryManager.Instance != null)
+        if (slotIndex < 0 || slotIndex >= hotbarSlots.Count)
         {
-            InventoryManager.Instance.MoveItem(fromIndex, toIndex, fromHotbar, toHotbar);
+            Debug.LogWarning($"Invalid slot index: {slotIndex}");
+            return;
         }
-    }
 
-    private void OnDragStateChanged(int slotIndex, bool isDragging)
-    {
-        if (slotIndex >= 0 && slotIndex < hotbarSlots.Count)
+        if (hotbarSlots[slotIndex] != null)
         {
-            // Change visual during drag to make item more visible
-            Color dragVisualColor = isDragging ? dragColor : normalDragColor;
-            hotbarSlots[slotIndex].SetDragVisual(dragVisualColor);
+            hotbarSlots[slotIndex].SetItem(seed);
+            OnItemChanged?.Invoke(seed, slotIndex);
         }
     }
 
-    public int GetSelectedSlotIndex()
+    public void ClearSlot(int slotIndex)
     {
-        return selectedSlotIndex;
-    }
-
-    public Item GetSelectedItem()
-    {
-        if (InventoryManager.Instance != null)
+        if (slotIndex >= 0 && slotIndex < hotbarSlots.Count && hotbarSlots[slotIndex] != null)
         {
-            InventorySlot slot = InventoryManager.Instance.GetHotbarSlot(selectedSlotIndex);
-            return slot?.item;
+            hotbarSlots[slotIndex].ClearSlot();
+            OnItemChanged?.Invoke(null, slotIndex);
         }
+    }
+
+    public HotbarSlotUI GetSelectedSlot()
+    {
+        if (selectedIndex >= 0 && selectedIndex < hotbarSlots.Count)
+            return hotbarSlots[selectedIndex];
         return null;
     }
 
-    public void RefreshAllSlots()
+    public HotbarSlotUI GetSlot(int index)
     {
-        if (InventoryManager.Instance != null)
-        {
-            for (int i = 0; i < HOTBAR_SIZE; i++)
-            {
-                InventorySlot slot = InventoryManager.Instance.GetHotbarSlot(i);
-                if (slot != null)
-                {
-                    UpdateHotbarSlot(i, slot);
-                }
-            }
-        }
+        if (index >= 0 && index < hotbarSlots.Count)
+            return hotbarSlots[index];
+        return null;
     }
 
-    private void OnDestroy()
+    public PlantSeed GetSelectedPlantSeed()
     {
-        if (InventoryManager.Instance != null)
-        {
-            InventoryManager.Instance.OnHotbarChanged -= UpdateHotbarSlot;
-        }
+        var selectedSlot = GetSelectedSlot();
+        return selectedSlot?.GetPlantSeed();
+    }
+
+    public int GetSelectedIndex()
+    {
+        return selectedIndex;
+    }
+
+    public bool HasItemInSelectedSlot()
+    {
+        var selectedSlot = GetSelectedSlot();
+        return selectedSlot != null && selectedSlot.HasItem();
     }
 }

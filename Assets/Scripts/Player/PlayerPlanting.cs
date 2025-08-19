@@ -3,278 +3,196 @@ using UnityEngine;
 public class PlayerPlanting : MonoBehaviour
 {
     [Header("Planting Settings")]
+    public float maxPlantDistance = 5f;
     public LayerMask groundLayer = 1;
-    public float plantingRange = 5f;
-    public float plantingCooldown = 0.5f;
+    public LayerMask obstacleLayer = 0; // слой для проверки препятствий
 
-    [Header("Preview")]
-    public GameObject currentPreview;
-    public Material previewValidMaterial;
-    public Material previewInvalidMaterial;
+    [Header("References")]
+    public HotbarUI hotbarUI;
+    public Transform previewParent;
 
+    [Header("Visual Settings")]
+    public Material validPreviewMaterial;
+    public Material invalidPreviewMaterial;
+
+    private GameObject currentPreview;
+    private bool canPlantAtCurrentPosition = false;
     private Camera playerCamera;
-    private PlantSeed currentSeed;
-    private bool isPlantingMode = false;
-    private float lastPlantTime = 0f;
-    private HotbarUI hotbarUI;
 
     private void Start()
     {
         playerCamera = Camera.main;
         if (playerCamera == null)
-        {
             playerCamera = FindObjectOfType<Camera>();
-        }
-
-        hotbarUI = FindObjectOfType<HotbarUI>();
-
-        if (hotbarUI != null)
-        {
-            hotbarUI.OnSlotSelected += OnHotbarSlotSelected;
-        }
     }
 
     private void Update()
     {
-        HandleInput();
-        UpdatePreview();
+        HandlePlantPreview();
+        HandlePlanting();
     }
 
-    private void HandleInput()
+    private void HandlePlantPreview()
     {
-        // Right click to plant
-        if (Input.GetMouseButtonDown(1) && isPlantingMode && currentSeed != null)
+        PlantSeed plantSeed = hotbarUI.GetSelectedPlantSeed();
+
+        if (plantSeed != null && plantSeed.previewPrefab != null)
         {
-            TryPlantSeed(currentSeed);
-        }
+            Ray ray = playerCamera.ScreenPointToRay(Input.mousePosition);
 
-        // Escape to cancel planting mode
-        if (Input.GetKeyDown(KeyCode.Escape) && isPlantingMode)
-        {
-            ExitPlantingMode();
-        }
-    }
+            if (Physics.Raycast(ray, out RaycastHit hit, maxPlantDistance, groundLayer))
+            {
+                Vector3 plantPosition = hit.point;
+                canPlantAtCurrentPosition = CanPlantAtPosition(plantPosition);
 
-    private void OnHotbarSlotSelected(int slotIndex)
-    {
-        if (InventoryManager.Instance == null) return;
+                // Создаем или обновляем превью
+                if (currentPreview == null)
+                {
+                    currentPreview = Instantiate(plantSeed.previewPrefab, plantPosition, Quaternion.identity, previewParent);
+                    SetupPreviewVisuals(currentPreview);
+                }
+                else
+                {
+                    currentPreview.transform.position = plantPosition;
+                }
 
-        InventorySlot slot = InventoryManager.Instance.GetHotbarSlot(slotIndex);
-
-        if (slot != null && !slot.IsEmpty() && slot.item is PlantSeed seed)
-        {
-            EnterPlantingMode(seed);
+                // Обновляем материал превью в зависимости от возможности посадки
+                UpdatePreviewMaterial(currentPreview, canPlantAtCurrentPosition);
+            }
+            else
+            {
+                DestroyPreview();
+                canPlantAtCurrentPosition = false;
+            }
         }
         else
         {
-            ExitPlantingMode();
+            DestroyPreview();
+            canPlantAtCurrentPosition = false;
         }
     }
 
-    private void EnterPlantingMode(PlantSeed seed)
+    private bool CanPlantAtPosition(Vector3 position)
     {
-        currentSeed = seed;
-        isPlantingMode = true;
+        // Проверяем, нет ли препятствий в радиусе посадки
+        float checkRadius = 0.5f;
+        Collider[] obstacles = Physics.OverlapSphere(position, checkRadius, obstacleLayer);
 
-        // Create preview object
-        if (seed.previewPrefab != null)
+        return obstacles.Length == 0;
+    }
+
+    private void SetupPreviewVisuals(GameObject preview)
+    {
+        // Отключаем коллайдеры у превью
+        Collider[] colliders = preview.GetComponentsInChildren<Collider>();
+        foreach (var col in colliders)
+            col.enabled = false;
+
+        // Делаем превью полупрозрачным
+        Renderer[] renderers = preview.GetComponentsInChildren<Renderer>();
+        foreach (var renderer in renderers)
         {
-            if (currentPreview != null)
+            foreach (var material in renderer.materials)
             {
-                Destroy(currentPreview);
-            }
-
-            currentPreview = Instantiate(seed.previewPrefab);
-
-            // Make preview semi-transparent
-            Renderer[] renderers = currentPreview.GetComponentsInChildren<Renderer>();
-            foreach (var renderer in renderers)
-            {
-                foreach (var material in renderer.materials)
+                if (material.HasProperty("_Color"))
                 {
-                    if (material.HasProperty("_Color"))
-                    {
-                        Color color = material.color;
-                        color.a = 0.6f;
-                        material.color = color;
-                    }
+                    Color color = material.color;
+                    color.a = 0.7f;
+                    material.color = color;
                 }
             }
         }
-
-        Debug.Log($"Entered planting mode with {seed.itemName}");
     }
 
-    public void ForceExitPlantingMode()
+    private void UpdatePreviewMaterial(GameObject preview, bool canPlant)
     {
-        ExitPlantingMode();
+        if (validPreviewMaterial == null || invalidPreviewMaterial == null)
+            return;
+
+        Material targetMaterial = canPlant ? validPreviewMaterial : invalidPreviewMaterial;
+
+        Renderer[] renderers = preview.GetComponentsInChildren<Renderer>();
+        foreach (var renderer in renderers)
+        {
+            renderer.material = targetMaterial;
+        }
     }
 
-    private void ExitPlantingMode()
+    private void DestroyPreview()
     {
-        isPlantingMode = false;
-        currentSeed = null;
-
         if (currentPreview != null)
         {
             Destroy(currentPreview);
             currentPreview = null;
         }
-
-        Debug.Log("Exited planting mode");
     }
 
-    private void UpdatePreview()
+    private void HandlePlanting()
     {
-        if (!isPlantingMode || currentPreview == null) return;
-
-        Ray ray = playerCamera.ScreenPointToRay(Input.mousePosition);
-
-        if (Physics.Raycast(ray, out RaycastHit hit, plantingRange, groundLayer))
+        if (Input.GetMouseButtonDown(0))
         {
-            Vector3 plantPosition = hit.point;
-            currentPreview.transform.position = plantPosition;
-            currentPreview.SetActive(true);
+            PlantSeed plantSeed = hotbarUI.GetSelectedPlantSeed();
 
-            // Check if position is valid for planting
-            bool canPlant = CanPlantAt(plantPosition);
-            SetPreviewMaterial(canPlant);
+            if (plantSeed != null && canPlantAtCurrentPosition)
+            {
+                Ray ray = playerCamera.ScreenPointToRay(Input.mousePosition);
+
+                if (Physics.Raycast(ray, out RaycastHit hit, maxPlantDistance, groundLayer))
+                {
+                    if (TryPlantSeed(plantSeed, hit.point))
+                    {
+                        // Убираем семя из хотбара после успешной посадки
+                        // (опционально, зависит от игровой логики)
+                        // hotbarUI.ClearSlot(hotbarUI.GetSelectedIndex());
+                    }
+                }
+            }
+            else if (plantSeed == null)
+            {
+                Debug.Log("Нет семян в выбранном слоте");
+            }
+            else if (!canPlantAtCurrentPosition)
+            {
+                Debug.Log("Невозможно посадить в этом месте");
+            }
+        }
+    }
+
+    public bool TryPlantSeed(PlantSeed seed, Vector3 position)
+    {
+        if (seed == null || seed.plantPrefab == null)
+        {
+            Debug.LogWarning("Семя или префаб растения отсутствует");
+            return false;
+        }
+
+        if (!CanPlantAtPosition(position))
+        {
+            Debug.Log("В этом месте нельзя посадить растение");
+            return false;
+        }
+
+        // Создаем растение
+        GameObject planted = Instantiate(seed.plantPrefab, position, Quaternion.identity);
+        planted.name = $"Plant_{seed.plantData.plantName}_{System.DateTime.Now.Ticks}";
+
+        // Инициализируем компонент растения
+        PlantedPlant plantedPlant = planted.GetComponent<PlantedPlant>();
+        if (plantedPlant != null)
+        {
+            plantedPlant.Initialize(seed.plantData);
         }
         else
         {
-            currentPreview.SetActive(false);
-        }
-    }
-
-    private bool CanPlantAt(Vector3 position)
-    {
-        if (currentSeed == null) return false;
-
-        // Check for overlapping plants
-        Collider[] overlapping = Physics.OverlapSphere(position, currentSeed.minPlantingDistance);
-        foreach (var collider in overlapping)
-        {
-            if (collider.GetComponent<PlantedPlant>() != null)
-            {
-                return false;
-            }
+            Debug.LogWarning($"PlantedPlant component not found on {planted.name}");
         }
 
+        Debug.Log($"Посажено растение: {seed.plantData.plantName} в позиции {position}");
         return true;
     }
 
-    private void SetPreviewMaterial(bool canPlant)
+    private void OnDisable()
     {
-        if (currentPreview == null) return;
-
-        Material materialToUse = canPlant ? previewValidMaterial : previewInvalidMaterial;
-        if (materialToUse == null) return;
-
-        Renderer[] renderers = currentPreview.GetComponentsInChildren<Renderer>();
-        foreach (var renderer in renderers)
-        {
-            Material[] materials = new Material[renderer.materials.Length];
-            for (int i = 0; i < materials.Length; i++)
-            {
-                materials[i] = materialToUse;
-            }
-            renderer.materials = materials;
-        }
-    }
-
-    public bool TryPlantSeed(PlantSeed seed)
-    {
-        if (Time.time - lastPlantTime < plantingCooldown) return false;
-        if (seed == null || seed.plantData == null || seed.plantPrefab == null) return false;
-
-        Ray ray = playerCamera.ScreenPointToRay(Input.mousePosition);
-
-        if (Physics.Raycast(ray, out RaycastHit hit, plantingRange, seed.validGroundLayers))
-        {
-            Vector3 plantPosition = hit.point;
-
-            if (CanPlantAt(plantPosition))
-            {
-                // Create the planted plant
-                GameObject plantObj = Instantiate(seed.plantPrefab, plantPosition, Quaternion.identity);
-                PlantedPlant plantedPlant = plantObj.GetComponent<PlantedPlant>();
-
-                if (plantedPlant == null)
-                {
-                    plantedPlant = plantObj.AddComponent<PlantedPlant>();
-                }
-
-                // Initialize the plant with data
-                plantedPlant.InitializePlant(seed.plantData);
-
-                // Subscribe to plant events if needed
-                plantedPlant.OnPlantFullyGrown += OnPlantFullyGrown;
-                plantedPlant.OnPlantHarvested += OnPlantHarvested;
-
-                // Remove seed from inventory
-                if (hotbarUI != null)
-                {
-                    int selectedSlot = hotbarUI.GetSelectedSlotIndex();
-                    InventoryManager.Instance?.RemoveFromHotbar(selectedSlot, 1);
-                }
-
-                lastPlantTime = Time.time;
-
-                Debug.Log($"Planted {seed.itemName} at {plantPosition}");
-                return true;
-            }
-            else
-            {
-                Debug.Log("Cannot plant here - too close to another plant or invalid location");
-            }
-        }
-        else
-        {
-            Debug.Log("Cannot plant - no valid ground found");
-        }
-
-        return false;
-    }
-
-    public bool IsInPlantingMode()
-    {
-        return isPlantingMode;
-    }
-
-    public PlantSeed GetCurrentSeed()
-    {
-        return currentSeed;
-    }
-
-    private void OnPlantFullyGrown(PlantedPlant plant)
-    {
-        Debug.Log($"Plant {plant.plantData.plantName} is fully grown!");
-        // Здесь можно добавить дополнительную логику
-    }
-
-    private void OnPlantHarvested(PlantedPlant plant)
-    {
-        Debug.Log($"Plant {plant.plantData.plantName} was harvested!");
-        // Здесь можно добавить дополнительную логику
-    }
-
-    private void OnDestroy()
-    {
-        if (hotbarUI != null)
-        {
-            hotbarUI.OnSlotSelected -= OnHotbarSlotSelected;
-        }
-
-        if (currentPreview != null)
-        {
-            Destroy(currentPreview);
-        }
-    }
-
-    // For debugging
-    private void OnDrawGizmosSelected()
-    {
-        Gizmos.color = Color.green;
-        Gizmos.DrawWireSphere(transform.position, plantingRange);
+        DestroyPreview();
     }
 }
